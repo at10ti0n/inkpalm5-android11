@@ -56,3 +56,7 @@ holding the buttons.
 ## License
 GPL-2.0 for everything in this repository (the TWRP overlay must be; the rest follows).
 No warranty.  This can brick a device: read `docs/FLASHING.md` and keep your stock images.
+
+## Discussion
+r/InkPalm5 thread: https://www.reddit.com/r/InkPalm5/comments/1wirslw/android_11_running_on_the_moaan_inkpalm_5_pro/
+Issues and pull requests welcome here; results from other units especially.
