@@ -30,7 +30,11 @@ def emit(ents):
 assert emit(ents)==cpio
 init=next(e for e in ents if e['name']=='init'); assert hashlib.sha256(init['data']).hexdigest()==INIT_SHA
 ib=bytearray(init['data']); assert ib[PATCH_OFF:PATCH_OFF+2]==b'\x01\x20'; ib[PATCH_OFF:PATCH_OFF+2]=b'\x00\x20'; assert hashlib.sha256(bytes(ib)).hexdigest()==INIT_PATCHED_SHA; init['data']=bytes(ib)
-rc=next(e for e in ents if e['name']=='init.rc'); rc['data']=(here/'a11-prepend.rc').read_bytes()+rc['data']
+import os
+prep=(here/'a11-prepend.rc').read_bytes()
+if os.environ.get('A11_SF_ORIENTATION'):   # 3.2 natural-portrait experiment
+    prep=b'on init\n    setprop ro.surface_flinger.primary_display_orientation ORIENTATION_'+os.environ['A11_SF_ORIENTATION'].encode()+b'\n\n'+prep
+rc=next(e for e in ents if e['name']=='init.rc'); rc['data']=prep+rc['data']
 wd=here/'wdog'
 if wd.exists(): ents.insert(len(ents)-1,dict(ino=max(e['ino'] for e in ents)+1,mode=0o100755,uid=0,gid=0,nlink=1,mtime=0,dmaj=init['dmaj'],dmin=init['dmin'],rmaj=0,rmin=0,name='wdog',data=wd.read_bytes()))
 gz=gzip.compress(emit(ents),9,mtime=0); hdr=bytearray(d[:2048]); struct.pack_into('<I',hdr,16,len(gz))

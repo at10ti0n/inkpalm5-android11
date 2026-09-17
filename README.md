@@ -61,7 +61,8 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
 
 Native replacements for several rows below were implemented after v1 -- see
 `docs/NATIVE-A11-FIRST-PASS.md`, `docs/NATIVE-A11-SECOND-PASS.md`, and the independent
-review with the remaining native proposals in `docs/REVIEW-NATIVE-PASSES.md`.
+review with the remaining native proposals in `docs/REVIEW-NATIVE-PASSES.md`, and the third
+pass (system-UID tiles, telephony, wake sources) in `docs/NATIVE-A11-THIRD-PASS.md`.
 
 ## Quirks and workarounds (where native Android 11 did not work here, and what was built instead)
 Each entry: the native mechanism that should have done the job, what actually happened on this
