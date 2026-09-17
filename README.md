@@ -58,6 +58,10 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
 
 **Post-v1 native configuration:** see [the first-pass update](docs/NATIVE-A11-FIRST-PASS.md) for persistent portrait, native AOD, and separate power/page-key layouts. The [second-pass update](docs/NATIVE-A11-SECOND-PASS.md) restores kernel suspend with AOD and native USB/ADB. Published v1 prebuilts still use the earlier workarounds.
 
+Native replacements for several rows below were implemented after v1 -- see
+`docs/NATIVE-A11-FIRST-PASS.md`, `docs/NATIVE-A11-SECOND-PASS.md`, and the independent
+review with the remaining native proposals in `docs/REVIEW-NATIVE-PASSES.md`.
+
 ## Quirks and workarounds (where native Android 11 did not work here, and what was built instead)
 Each entry: the native mechanism that should have done the job, what actually happened on this
 device, the workaround shipped, and the cleaner fix if someone wants to do it properly.
