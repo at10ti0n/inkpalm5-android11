@@ -123,3 +123,9 @@ precedence over the named files. The original script restores its own locked rot
 and timeout and resumes its custom sleep page. To remove the overlay file entirely,
 delete only /vendor/overlay/inkpalm-aod.apk with /vendor temporarily writable, then
 remount read-only and reboot. No boot or recovery image needs to be flashed.
+
+## Follow-up
+
+The [second pass](NATIVE-A11-SECOND-PASS.md) adds the required suspend-service
+startup and static power-overlay fixes. The capability overlay alone does not
+provide working kernel suspend on this boot/GSI combination.

@@ -8,7 +8,7 @@ display and touch.  Stock firmware is Android 8.1.
 boot, Quick Settings tiles for the panel's Text/Graphics waveform and a manual full refresh,
 volume buttons as page-turn keys, the capacitive logo as Home/wake, Unlauncher, Kindle,
 EinkBro, Aurora Store.  **Untested:** audio (declared, no speaker, nothing played yet), Bluetooth (declared, kept
-off), battery life (no measured figures).  No NFC/GPS hardware; telephony is declared but
+off), long-term battery life (short suspend measurements below).  No NFC/GPS hardware; telephony is declared but
 absent (PHH no-RIL).
 
 **Prebuilt images:** https://github.com/at10ti0n/inkpalm5-android11/releases/tag/v1 (verify SHA256SUMS).
@@ -52,10 +52,11 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
   `persist.sys.canRefresh=1` as a one-shot full refresh (Ghidra decompile, see
   `docs/REFRESH-CONTROL.md`).  Stock's two modes are Text = 2 (DU) and Graphics = 132.
   `einktile/` is a tiny Quick Settings app that flips them.
-* **ADB in Android 11**: PHH's `/cache/phh-adb` switch (adbd is script-launched; never
-  `adb root`, it kills it until reboot).
+* **ADB in Android 11**: v1 uses PHH's script-launched fallback (`adb root` breaks it).
+  The post-v1 [second pass](docs/NATIVE-A11-SECOND-PASS.md) restores init-managed
+  ADB, including working root/unroot restarts.
 
-**Post-v1 native configuration:** see [the first-pass update](docs/NATIVE-A11-FIRST-PASS.md) for persistent portrait, native AOD, and separate power/page-key layouts. Published v1 prebuilts still use the earlier workarounds.
+**Post-v1 native configuration:** see [the first-pass update](docs/NATIVE-A11-FIRST-PASS.md) for persistent portrait, native AOD, and separate power/page-key layouts. The [second-pass update](docs/NATIVE-A11-SECOND-PASS.md) restores kernel suspend with AOD and native USB/ADB. Published v1 prebuilts still use the earlier workarounds.
 
 ## Quirks and workarounds (where native Android 11 did not work here, and what was built instead)
 Each entry: the native mechanism that should have done the job, what actually happened on this
@@ -70,9 +71,9 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
 | 5 | `ro.surface_flinger.primary_display_orientation` | Rotates the picture but InputReader sees viewport orientation 0 -> touch transposed | Natural 1280x720 + fixed-to-user portrait settings (`configs/configure-native.sh`) + orientation-aware `.idc` | HWC/display config reporting the panel as portrait, so input and SF agree |
 | 6 | `user_rotation` setting persistence | SystemUI can copy startup landscape into a locked rotation preference | Post-v1: fixed-to-user rotation + sensor policy enabled preserves portrait; no polling | Native settings tested; brief landscape startup remains. See first-pass notes |
 | 7 | Apps that request the *natural* orientation (Launcher3, some readers) | Letterboxed into a 720x405 box because natural is landscape | Launcher3 `pref_allowRotation`; per-app for others | Same as 5 |
-| 8 | Framework USB gadget setup (`init.usb.configfs.rc` from the 8.1 ramdisk driving Android 11 adbd) | The chain never binds the UDC; the host sees no USB device | PHH's `/cache/phh-adb` script-launched adbd (never `adb root`: it kills it) | Fix the ffs.ready/UDC chain for the A11 adbd; or a proper `init.usb` for this vendor |
+| 8 | Framework USB gadget setup | Missing executable path and competing PHH daemon starts broke native ADB | v1 uses script-launched ADB | Post-v1: executable symlink and scoped PHH RC patch restore the native ffs.ready/UDC chain; root/unroot tested. See second-pass notes |
 | 9 | `SurfaceControl.setRefreshMode` / `forceGlobalRefresh` (stock Allwinner SF binder API used by stock apps) | Absent in AOSP SurfaceFlinger; the stock SystemUI tile broadcasts `android.eink.force.refresh` to nobody | The HWC reads `persist.sys.mRefreshMode` per frame and `persist.sys.canRefresh=1` as a one-shot; `einktile` writes them via su; `persist.display.gu16_max_limit` auto-refreshes | An app-facing refresh API (HAL extension or a small system service) |
-| 10 | Always-On Display / doze as a sleep screen | Correction: DozeService runs, but the always-on capability was false | Post-v1: capability RRO enables native AOD; ordinary 2-minute timeout replaces SleepActivity polling | Panel clock confirmed; battery/suspend performance remains unmeasured |
+| 10 | Always-On Display / doze as a sleep screen | Correction: DozeService runs, but the always-on capability was false | Post-v1: capability RRO enables native AOD; ordinary 2-minute timeout replaces SleepActivity polling | Post-v1 second pass: HAL startup timing + static power RRO restore kernel suspend; 15 successful suspends in a short AOD test |
 | 11 | Volume keys in reading apps | No common key: Kindle turns on DPAD/Space, WebView on Page keys | System-wide `.kl`: Vol Down = SPACE, Vol Up = DPAD_LEFT | Per-app remap (Key Mapper) |
 | 12 | Separate key layouts per input device | Shared ID layout matched power, page keys and sunxi-gpadc0 | Post-v1: device-name layouts for sunxi-keyboard and pmu1736-powerkey | Native name lookup works after removing the shared ID override; no driver change |
 | 13 | Capacitive Moaan logo as a gesture area | The touch controller reports it as one key (`KEY_HOMEPAGE`), no coordinates | HOME + WAKE via `.kl` | Controller firmware/driver change |

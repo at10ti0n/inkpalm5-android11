@@ -1,0 +1,6 @@
+<resources>
+    <!-- AOD uses DOZE_SUSPEND rather than OFF. Let PowerManager's suspend-blocker
+         policy drive autosuspend/interactive mode independently of display blanking. -->
+    <bool name="config_powerDecoupleAutoSuspendModeFromDisplay">true</bool>
+    <bool name="config_powerDecoupleInteractiveModeFromDisplay">true</bool>
+</resources>

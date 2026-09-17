@@ -37,3 +37,10 @@ Keep them somewhere safe.  Also keep a TWRP backup of /data later.  NEVER write 
 
 Rollback: from TWRP, dd your saved boot.img and system.img back by name, restore the
 /data backup, reboot.  Remove /vendor/lib/libhwcflip.so if you want /vendor byte-exact.
+
+## Post-v1 native suspend and USB
+
+After the native first-pass configuration, see [NATIVE-A11-SECOND-PASS.md](NATIVE-A11-SECOND-PASS.md)
+for the tested suspend-service timing fix, static AOD power overlay and native ADB
+repair. These source-tree updates are not included in published v1 images. Keep
+the PHH ADB fallback until its replacement and recovery guard are staged.
