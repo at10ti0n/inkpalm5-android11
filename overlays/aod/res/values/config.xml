@@ -1,0 +1,4 @@
+<resources>
+    <!-- The GSI already supplies SystemUI DozeService. Declare the tested capability. -->
+    <bool name="config_dozeAlwaysOnDisplayAvailable">true</bool>
+</resources>

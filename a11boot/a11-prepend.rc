@@ -12,12 +12,13 @@ service hwcomposer-2-1 /vendor/bin/hw/android.hardware.graphics.composer@2.1-ser
     onrestart restart surfaceflinger
     setenv LD_PRELOAD /vendor/lib/libhwcflip.so
 
-# Re-asserts rotation lock, E-Ink and battery settings after boot and guards them
-# (user_rotation resets on every boot on this device).  Script: configs/a11-boot-fixups.sh
+# Applies bounded E-Ink startup settings. Native AOD and fixed user rotation need
+# no polling guard. Script: configs/a11-boot-fixups.sh
 service a11fixups /system/bin/sh /data/local/a11-boot-fixups.sh
     user root
     group root shell system
     seclabel u:r:su:s0
+    oneshot
     disabled
 
 on property:sys.boot_completed=1

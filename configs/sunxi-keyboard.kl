@@ -1,0 +1,6 @@
+# EPD105 sunxi-keyboard: reader page keys, selected by input device name.
+key 115   DPAD_LEFT         # Vol Up   = previous page (Kindle)
+key 114   SPACE             # Vol Down = next page (Kindle) / page forward (EinkBro, WebView)
+key 28    ENTER
+key 102   HOME
+key 139   MENU

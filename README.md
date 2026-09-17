@@ -26,7 +26,7 @@ calibration (`/private`, never touch it), not the GSI (download it from phhusson
 |---|---|---|
 | ![einkbro](docs/images/einkbro.png) | ![kindle-about](docs/images/kindle-about.png) | ![kindle](docs/images/kindle-reader.png) |
 
-| Sleep page (shown before sleep; the panel holds it) |
+| v1 custom sleep page (post-v1 native AOD uses the SystemUI clock) |
 |---|
 | ![sleep](docs/images/sleep-page.png) |
 
@@ -46,7 +46,7 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
   mirrors each `DISP_EINK_UPDATE2` layer into a private ION buffer ring before the ioctl.
 * **Rotation and touch**: do *not* use `ro.surface_flinger.primary_display_orientation`
   (InputReader then transposes touch).  Keep the display natural and lock Android's user
-  rotation (`configs/a11-boot-fixups.sh`) with an input config marking the Goodix panel as
+  rotation (`configs/configure-native.sh`) with an input config marking the Goodix panel as
   an orientation-aware touchscreen (`configs/Vendor_dead_Product_beef.idc`).
 * **E Ink refresh control**: the vendor HWC reads `persist.sys.mRefreshMode` per frame and
   `persist.sys.canRefresh=1` as a one-shot full refresh (Ghidra decompile, see
@@ -54,6 +54,8 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
   `einktile/` is a tiny Quick Settings app that flips them.
 * **ADB in Android 11**: PHH's `/cache/phh-adb` switch (adbd is script-launched; never
   `adb root`, it kills it until reboot).
+
+**Post-v1 native configuration:** see [the first-pass update](docs/NATIVE-A11-FIRST-PASS.md) for persistent portrait, native AOD, and separate power/page-key layouts. Published v1 prebuilts still use the earlier workarounds.
 
 ## Quirks and workarounds (where native Android 11 did not work here, and what was built instead)
 Each entry: the native mechanism that should have done the job, what actually happened on this
@@ -65,14 +67,14 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
 | 2 | minui framebuffer backend (`/dev/graphics/fb0`) | The panel is not driven by fb0; it needs a Y8 buffer through `DISP_EINK_UPDATE2` on `/dev/disp`, transposed, and the Goodix axes are swapped | `libepdfix.so` LD_PRELOAD inside `recovery` (transpose + axis swap) | Rebuild TWRP with `twrp/overlay/` (EPD backend + `RECOVERY_TOUCHSCREEN_SWAP_XY`) |
 | 3 | GSI's own Android 11 `init` (apexd, linkerconfig) | Never used: the stock 8.1 boot ramdisk `init` runs the GSI; PHH's rc does flattened apex binds | 2-byte permissive-init patch + prepended rc (`a11boot/`) | Proper Android 11 boot image / vendor SELinux policy |
 | 4 | Vendor HWC presents SurfaceFlinger's client target | It reflects every frame along the panel's long axis; no rotation cancels a reflection | `libhwcflip.so` LD_PRELOAD into the composer service: copy-mirror each UPDATE2 layer into a private ION ring | Fix in the vendor HWC (no source) or a corrected panel/G2D path |
-| 5 | `ro.surface_flinger.primary_display_orientation` | Rotates the picture but InputReader sees viewport orientation 0 -> touch transposed | Natural 1280x720 + `wm set-user-rotation lock 1` + `set-fix-to-user-rotation` + `.idc` (orientation-aware touchscreen) | HWC/display config reporting the panel as portrait, so input and SF agree |
-| 6 | `user_rotation` setting persistence | Resets to 0 on every boot (cause not identified) | Boot fixups service re-applies it and a 15 s guard loop re-locks if auto-rotate is toggled | Find the resetter (likely a framework default on a display without a sensor) |
+| 5 | `ro.surface_flinger.primary_display_orientation` | Rotates the picture but InputReader sees viewport orientation 0 -> touch transposed | Natural 1280x720 + fixed-to-user portrait settings (`configs/configure-native.sh`) + orientation-aware `.idc` | HWC/display config reporting the panel as portrait, so input and SF agree |
+| 6 | `user_rotation` setting persistence | SystemUI can copy startup landscape into a locked rotation preference | Post-v1: fixed-to-user rotation + sensor policy enabled preserves portrait; no polling | Native settings tested; brief landscape startup remains. See first-pass notes |
 | 7 | Apps that request the *natural* orientation (Launcher3, some readers) | Letterboxed into a 720x405 box because natural is landscape | Launcher3 `pref_allowRotation`; per-app for others | Same as 5 |
 | 8 | Framework USB gadget setup (`init.usb.configfs.rc` from the 8.1 ramdisk driving Android 11 adbd) | The chain never binds the UDC; the host sees no USB device | PHH's `/cache/phh-adb` script-launched adbd (never `adb root`: it kills it) | Fix the ffs.ready/UDC chain for the A11 adbd; or a proper `init.usb` for this vendor |
 | 9 | `SurfaceControl.setRefreshMode` / `forceGlobalRefresh` (stock Allwinner SF binder API used by stock apps) | Absent in AOSP SurfaceFlinger; the stock SystemUI tile broadcasts `android.eink.force.refresh` to nobody | The HWC reads `persist.sys.mRefreshMode` per frame and `persist.sys.canRefresh=1` as a one-shot; `einktile` writes them via su; `persist.display.gu16_max_limit` auto-refreshes | An app-facing refresh API (HAL extension or a small system service) |
-| 10 | Always-On Display / doze as a sleep screen | `DozeService` never starts; display goes straight to OFF | Boot fixups loop shows `SleepActivity` after 2 min idle then sleeps; Android's own timeout is a 10 min fallback | Working doze config (`config_dozeComponent`, AOD overlay) |
+| 10 | Always-On Display / doze as a sleep screen | Correction: DozeService runs, but the always-on capability was false | Post-v1: capability RRO enables native AOD; ordinary 2-minute timeout replaces SleepActivity polling | Panel clock confirmed; battery/suspend performance remains unmeasured |
 | 11 | Volume keys in reading apps | No common key: Kindle turns on DPAD/Space, WebView on Page keys | System-wide `.kl`: Vol Down = SPACE, Vol Up = DPAD_LEFT | Per-app remap (Key Mapper) |
-| 12 | Separate key layouts per input device | The power key and the volume keys share Vendor 0001/Product 0001, so one `.kl` governs both | `POWER WAKE` listed in the same file | Distinct IDs in the kernel drivers |
+| 12 | Separate key layouts per input device | Shared ID layout matched power, page keys and sunxi-gpadc0 | Post-v1: device-name layouts for sunxi-keyboard and pmu1736-powerkey | Native name lookup works after removing the shared ID override; no driver change |
 | 13 | Capacitive Moaan logo as a gesture area | The touch controller reports it as one key (`KEY_HOMEPAGE`), no coordinates | HOME + WAKE via `.kl` | Controller firmware/driver change |
 | 14 | Framework `exec` in the 8.1 init | Temporary `exec` children never ran (Gate 1F a6) | Declared oneshot/long-running services only | -- |
 | 15 | Telephony | Vendor declares GSM/IMS it has no hardware for | PHH no-RIL; phone process idle | Vendor manifest without telephony |
@@ -81,7 +83,8 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
 ## Layout
     twrp/       mktwrp.py + twrp-epd105-ramdisk.cpio.gz + libepdfix.c + overlay patch
     a11boot/    mkboot.py + a11-prepend.rc + libhwcflip.c + wdog.c
-    configs/    a11-boot-fixups.sh, key layouts (volume = page turn), touch idc
+    configs/    configure-native.sh, bounded boot fixups, named key layouts, touch idc
+    overlays/   native AOD capability overlay builder
     einktile/   Quick Settings tiles (build.sh: Android build-tools + JDK 11)
     docs/       FLASHING.md (read first), REFRESH-CONTROL.md, twrp-boot-review.md, images/
 

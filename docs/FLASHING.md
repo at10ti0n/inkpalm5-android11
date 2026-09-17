@@ -28,7 +28,10 @@ Keep them somewhere safe.  Also keep a TWRP backup of /data later.  NEVER write 
 9. From Android 11 (adb shell su):  copy configs/a11-boot-fixups.sh to /data/local/, the
    .kl files to /data/system/devices/keylayout/, the .idc to /data/system/devices/idc/
    (owner system:system), then run the script once:  sh /data/local/a11-boot-fixups.sh
-   Portrait, touch, animations-off, radios-off are now set and re-applied every boot.
+   Touch configuration loads on reboot; animations and radio settings apply at startup.
+   With the post-v1 source tree, install the AOD overlay and run configure-native.sh
+   as described in [Native Android 11 first pass](NATIVE-A11-FIRST-PASS.md). The bounded
+   startup script no longer configures rotation; configure-native.sh does so once.
 10. Optional: einktile (build.sh, then `adb install`; grant it root in PHH Superuser),
     Unlauncher, EinkBro, Aurora Store.
 
