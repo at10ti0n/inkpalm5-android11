@@ -22,9 +22,9 @@ calibration (`/private`, never touch it), not the GSI (download it from phhusson
 |---|---|---|
 | ![home](docs/images/home.png) | ![qs](docs/images/quicksettings.png) | ![about](docs/images/about-android11.png) |
 
-| EinkBro | Kindle (reader; title blurred, page content is DRM-protected) | Display settings |
+| EinkBro | Kindle about (8.156 on API 30) | Kindle reader (title blurred; page content is DRM-protected) |
 |---|---|---|
-| ![einkbro](docs/images/einkbro.png) | ![kindle](docs/images/kindle-reader.png) | ![display](docs/images/settings-display.png) |
+| ![einkbro](docs/images/einkbro.png) | ![kindle-about](docs/images/kindle-about.png) | ![kindle](docs/images/kindle-reader.png) |
 
 Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/first-boot-mirrored.jpg` (first boot, before the composer fix).
 
