@@ -17,6 +17,17 @@ own** stock `boot.img` / `recovery.img` (hash-checked) and produces the modified
 Nothing proprietary is redistributed — not Moaan's partitions, not E Ink's waveform/VCOM
 calibration (`/private`, never touch it), not the GSI (download it from phhusson).
 
+## Screenshots (Android 11 on the device, captured via `screencap` -- the composed frame the panel shows)
+| Home (Unlauncher) | Quick Settings: E-Ink tiles | About: Android 11 |
+|---|---|---|
+| ![home](docs/images/home.png) | ![qs](docs/images/quicksettings.png) | ![about](docs/images/about-android11.png) |
+
+| EinkBro | Kindle (reader; title blurred, page content is DRM-protected) | Display settings |
+|---|---|---|
+| ![einkbro](docs/images/einkbro.png) | ![kindle](docs/images/kindle-reader.png) | ![display](docs/images/settings-display.png) |
+
+Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/first-boot-mirrored.jpg` (first boot, before the composer fix).
+
 ## How it works (the parts that took weeks to find)
 * **TWRP was blank on this device** because TWRP's Android-9 `init` only creates
   `/dev/block/by-name/*` when the bootloader passes `androidboot.boot_devices` — Moaan's
