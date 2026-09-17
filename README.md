@@ -10,7 +10,8 @@ volume buttons as page-turn keys, the capacitive logo as Home/wake, Unlauncher, 
 EinkBro, Aurora Store.  **Not done / unknown:** audio, Bluetooth (turned off), long-term
 battery figures, GPS (the device has none).
 
-Everything here is *builders and sources*, not flashable images: each script takes **your
+**Prebuilt images:** https://github.com/at10ti0n/inkpalm5-android11/releases/tag/v1 (verify SHA256SUMS).
+The repository itself is *builders and sources*: each script takes **your
 own** stock `boot.img` / `recovery.img` (hash-checked) and produces the modified image.
 Nothing proprietary is redistributed — not Moaan's partitions, not E Ink's waveform/VCOM
 calibration (`/private`, never touch it), not the GSI (download it from phhusson).

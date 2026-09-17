@@ -8,7 +8,8 @@ Wi-Fi, ADB from boot, volume buttons turning pages, Kindle/EinkBro/Unlauncher, a
 Settings tiles for the panel's Text/Graphics waveform and a manual full refresh.  There is
 also a working TWRP with ADB at the menu, which stock recovery never offered.
 
-Repo: https://github.com/at10ti0n/inkpalm5-android11  — builders and sources only.  Every script takes your OWN stock boot/recovery
+Repo: https://github.com/at10ti0n/inkpalm5-android11  — sources + builders, and prebuilt
+images under Releases (v1) for those who just want to flash.  Every script takes your OWN stock boot/recovery
 image (hash-checked) and produces the modified one; nothing proprietary is redistributed
 (no Moaan partitions, no E Ink waveform, no GSI — grab that from phh).  GPL-2.0.
 
