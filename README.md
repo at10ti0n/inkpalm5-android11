@@ -64,6 +64,11 @@ Native replacements for several rows below were implemented after v1 -- see
 review with the remaining native proposals in `docs/REVIEW-NATIVE-PASSES.md`, and the third
 pass (system-UID tiles, telephony, wake sources) in `docs/NATIVE-A11-THIRD-PASS.md`.
 
+## Front light (brightness + warmth)
+Works natively through the Android brightness slider; warmth is the **Warmth** tile.
+`frontlight/` replaces the vendor lights HAL module, which drove an LCD backlight path
+that goes nowhere on this board -- see [docs/FRONTLIGHT.md](docs/FRONTLIGHT.md).
+
 ## Quirks and workarounds (where native Android 11 did not work here, and what was built instead)
 Each entry: the native mechanism that should have done the job, what actually happened on this
 device, the workaround shipped, and the cleaner fix if someone wants to do it properly.

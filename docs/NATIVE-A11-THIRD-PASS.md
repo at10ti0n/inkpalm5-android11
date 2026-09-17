@@ -91,3 +91,11 @@ Protocol: unplug, press power once so the screen goes to AOD, leave it for >= 4 
 per hour with the screen off, suspend success count > 0, and which wake source dominates
 `prevent_suspend_time` -- `sy7673a_wakelock` is the one to watch, it is the only
 non-USB source that grows while idle.
+
+## 3.9 Front light -- vendor lights module replaced, native slider + Warmth tile (DONE)
+First real regression report from daily use: no brightness, no warmth.  Root cause and fix
+in `docs/FRONTLIGHT.md`: the stock LM3630A is driven through `/proc/lm3630a/` by stock
+SystemUI, never by the vendor lights HAL module (which writes to `/dev/disp`).  A
+replacement `lights.virgo.so` keeps the whole framework/HIDL chain native and maps the
+backlight call onto the stock tables; warmth is a persisted property with a QS tile
+(einktile v3).  Doze/slider-minimum = off.  Measured end-to-end, committed with sources.

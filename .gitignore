@@ -3,3 +3,4 @@
 *.jks
 build/
 __pycache__/
+frontlight/*.so
