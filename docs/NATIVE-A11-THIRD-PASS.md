@@ -99,3 +99,14 @@ SystemUI, never by the vendor lights HAL module (which writes to `/dev/disp`).  
 replacement `lights.virgo.so` keeps the whole framework/HIDL chain native and maps the
 backlight call onto the stock tables; warmth is a persisted property with a QS tile
 (einktile v3).  Doze/slider-minimum = off.  Measured end-to-end, committed with sources.
+
+## 3.10 Incident: SurfaceFlinger livelock (hot + frozen screen) -- diagnosed, not fixed
+2026-09-17/18, first hang of this port.  SF's app-facing EventThread spun holding the
+EventThread mutex; main + binder threads blocked on it, `dumpsys SurfaceFlinger` timed out,
+the display stopped updating (so the panel held its last image and the power button looked
+dead), and the framework kept the display suspend blocker, so the SoC never suspended --
+one core at max clock until the battery gives out, on or off the charger.  Front light,
+composer shim, background load and CPU governor all measured and ruled out as the cause;
+the clean-boot idle is 368%/400%.  Full evidence and the ranked next steps are in
+`docs/INCIDENT-SF-LIVELOCK.md`.  Leading untested hypothesis: the doze/AOD transition on
+unplug, which is our own overlay work.
