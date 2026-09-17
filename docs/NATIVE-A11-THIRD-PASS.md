@@ -70,3 +70,24 @@ YScale: 0.999`.  Note: this is the first boot of the *clean* repo build; the v1 
 image (60bf6233...) still carries the gate17 trial instrumentation (`/collector`, `g17wdog`,
 p13 markers) in its prepended rc.  Functionally equivalent; the clean build is what a fresh
 clone produces and it is now verified on hardware.
+
+## 3.8 Unplugged suspend / battery measurement -- baseline taken, waiting on the interval
+Plugged in, the device never suspends (`/sys/kernel/debug/suspend_stats` success=0, fail=0
+since boot; the `chgusb`/`usb_connecting` wake sources hold it), so every number worth
+having needs the cable out and ADB gone.  Baseline 2026-09-17 18:37 EEST, clean repo boot
+(c6f97ad6...), AOD on, screen timeout 120 s, radios off, deviceidle enabled:
+
+```
+level 100, USB powered, status 5 (full)
+wakeup_sources (total_time ms since boot): mmc1:0001:2 (Wi-Fi SDIO) 2392,
+  sy7673a_wakelock (EPD power IC) 18021 over 36 activations (max 601 ms), event0 53
+dumpsys batterystats --reset   (so the next dump is the unplugged interval only)
+```
+Full table: `a11/gate17/build/battery/wakeup_sources-baseline.txt` (project side).
+
+Protocol: unplug, press power once so the screen goes to AOD, leave it for >= 4 h
+(overnight is better), plug back in, then read `dumpsys batterystats | grep -A3 Discharge`,
+`suspend_stats`, and the `wakeup_sources` delta against the baseline.  Targets: percent
+per hour with the screen off, suspend success count > 0, and which wake source dominates
+`prevent_suspend_time` -- `sy7673a_wakelock` is the one to watch, it is the only
+non-USB source that grows while idle.
