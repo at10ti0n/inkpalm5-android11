@@ -11,7 +11,11 @@ EinkBro, Aurora Store.  **Untested:** audio (declared, no speaker, nothing playe
 off), long-term battery life (short suspend measurements below).  No NFC/GPS hardware; telephony is declared but
 absent (PHH no-RIL).
 
-**Prebuilt images:** https://github.com/at10ti0n/inkpalm5-android11/releases/tag/v1 (verify SHA256SUMS).
+## → [**Install guide**](INSTALL.md) ←
+Prebuilt images and two scripts; about 45 minutes. Prefer to build it yourself from your own
+stock partitions? [BUILDING.md](BUILDING.md).
+
+**Prebuilt images:** https://github.com/at10ti0n/inkpalm5-android11/releases/latest (verify SHA256SUMS).
 The repository itself is *builders and sources*: each script takes **your
 own** stock `boot.img` / `recovery.img` (hash-checked) and produces the modified image.
 Nothing proprietary is redistributed — not Moaan's partitions, not E Ink's waveform/VCOM
@@ -98,7 +102,9 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
     configs/    configure-native.sh, bounded boot fixups, named key layouts, touch idc
     overlays/   native AOD capability overlay builder
     einktile/   Quick Settings tiles (build.sh: Android build-tools + JDK 11)
-    docs/       FLASHING.md (read first), REFRESH-CONTROL.md, twrp-boot-review.md, images/
+    install/    from-twrp.sh + from-android.sh (the install guide runs these)
+    frontlight/ replacement lights HAL: brightness slider + warmth
+    docs/       REFRESH-CONTROL.md, FRONTLIGHT.md, INCIDENT-SF-LIVELOCK.md, images/
 
 ## Credits
 phhusson (Treble GSI, superuser), TeamWin (TWRP), jkuester (Unlauncher), plateaukao
@@ -108,7 +114,7 @@ holding the buttons.
 
 ## License
 GPL-2.0 for everything in this repository (the TWRP overlay must be; the rest follows).
-No warranty.  This can brick a device: read `docs/FLASHING.md` and keep your stock images.
+No warranty.  This can brick a device: read [INSTALL.md](INSTALL.md) and keep your stock images.
 
 ## Discussion
 r/InkPalm5 thread: https://www.reddit.com/r/InkPalm5/comments/1wirslw/android_11_running_on_the_moaan_inkpalm_5_pro/

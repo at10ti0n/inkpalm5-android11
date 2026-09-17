@@ -1,0 +1,62 @@
+# Building from your own stock images
+
+[INSTALL.md](INSTALL.md) uses the prebuilt release images. This page is the other route:
+build everything yourself from **your own** device's partitions, so nothing here has to be
+trusted. The builders refuse any input whose SHA-256 is not the known stock image, so a
+successful build is itself a check that your dumps are intact.
+
+Nothing proprietary is redistributed by this repo — not Moaan's partitions, not E Ink's
+waveform/VCOM calibration, not the GSI.
+
+## Inputs
+
+```
+adb shell su -c "dd if=/dev/block/by-name/boot     bs=4096"    > boot.img       # 62ce2f88...
+adb shell su -c "dd if=/dev/block/by-name/recovery bs=4096"    > recovery.img   # a13a37be...
+adb shell su -c "dd if=/dev/block/by-name/system   bs=1048576" > system.img     # rollback
+```
+
+## Build
+
+```
+python3 twrp/mktwrp.py    recovery.img  twrp-epd105.img
+python3 a11boot/mkboot.py boot.img      boot-android11-epd105.img
+```
+
+`mktwrp.py` re-adds the E Ink waveform (`/system/default.bin`) from *your* stock ramdisk —
+which is why the shipped TWRP ramdisk in this repo has it stripped.
+
+The native pieces need the Android NDK (r2x) and, for the APKs, build-tools 34 + JDK 11:
+
+```
+NDK=.../toolchains/llvm/prebuilt/<host>/bin
+$NDK/armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wl,-z,now -o libhwcflip.so   a11boot/libhwcflip.c -ldl
+$NDK/armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wl,-z,now -o lights.virgo.so frontlight/lights_epd105.c -llog
+MODE_TEXT=2 MODE_GRAPHICS=132 bash einktile/build.sh     # -> einktile/build/einktile.apk
+bash overlays/aod/build.sh                               # -> overlays/aod/build/inkpalm-aod.apk
+```
+
+Collect the six outputs into one folder and it is a drop-in replacement for the release
+assets — hand that folder to `install/from-twrp.sh` and `install/from-android.sh` and
+follow [INSTALL.md](INSTALL.md) from step 1.
+
+## Doing it by hand
+
+If you would rather not run the install scripts, they are short and readable; each step is
+a plain `adb`/`dd` line with a read-back check. Read `install/from-twrp.sh` and
+`install/from-android.sh` — between them they are the whole procedure, and the comments say
+why each piece is needed.
+
+## What each piece is for
+
+| File | Why it exists |
+|---|---|
+| `twrp-epd105.img` | TWRP with the by-name symlinks, EPD display and swapped touch axes |
+| `boot-android11-epd105.img` | stock 8.1 ramdisk + permissive-init patch + prepended rc |
+| `libhwcflip.so` | `/vendor/lib/` — cancels the vendor composer's frame mirroring |
+| `lights.virgo.so` | `/vendor/lib/hw/` — drives the real LM3630A front light |
+| `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
+| `einktile.apk` | Quick Settings: Text/Graphics, full refresh, warmth |
+
+Design notes for all of these are in `docs/`; start with
+[REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).
