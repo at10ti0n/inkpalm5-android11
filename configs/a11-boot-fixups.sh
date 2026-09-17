@@ -12,6 +12,8 @@ settings put global transition_animation_scale 0
 settings put global animator_duration_scale 0
 settings put global stay_on_while_plugged_in 0
 [ -z "$(getprop persist.sys.mRefreshMode)" ] && setprop persist.sys.mRefreshMode 132
+# auto full refresh after N partial updates (HWC updateGu16Refreshlimit); 0 = never (stock)
+[ -z "$(getprop persist.display.gu16_max_limit)" ] && setprop persist.display.gu16_max_limit 10
 # battery (2026-09-17): no BT peripherals, no GPS on this device, keep radios/scanning off
 svc bluetooth disable; settings put global bluetooth_on 0
 settings put secure location_mode 0
