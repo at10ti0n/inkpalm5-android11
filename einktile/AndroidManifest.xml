@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="net.inkpalm.einktile" android:versionCode="1" android:versionName="1.0">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="27"/>
+  <application android:label="E-Ink Mode" android:icon="@drawable/ic_tile">
+    <service android:name=".ModeTile" android:label="E-Ink Mode" android:icon="@drawable/ic_tile"
+             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+      <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter>
+    </service>
+    <service android:name=".RefreshTile" android:label="Refresh Screen" android:icon="@drawable/ic_refresh"
+             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+      <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter>
+    </service>
+  </application>
+</manifest>

@@ -1,0 +1,9 @@
+--- /Users/at10ti0n/Downloads/inkpalm-twrp-build-checkpoint/device/moaan/EPD105/BoardConfig.mk	2026-09-10 09:42:46
++++ BoardConfig.mk	2026-09-17 02:31:01
+@@ -52,3 +52,6 @@
+ 
+ TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/twrp.fstab
+ TW_EXCLUDE_DEFAULT_USB_INIT := true
++# fix2 (2026-09-17): Goodix GT1158 reports X 0..1280 down the portrait screen and
++# Y 0..720 across it (corner taps: TL=(151,142) BR=(1215,584)). Swap, no flips.
++RECOVERY_TOUCHSCREEN_SWAP_XY       := true

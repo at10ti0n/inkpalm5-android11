@@ -1,0 +1,24 @@
+# Android 11 (PHH GSI) on Moaan InkPalm 5 Pro Mini (EPD105) -- prepended to the stock
+# Android 8.1 boot ramdisk /init.rc by mkboot.py, so these register before everything else.
+
+# The vendor composer's framebuffer path reflects every frame along the panel's long axis.
+# We define the SAME service the vendor rc defines (ours registers first, so 8.1 init keeps
+# ours and ignores the duplicate) and preload libhwcflip.so into it (see libhwcflip.c).
+service hwcomposer-2-1 /vendor/bin/hw/android.hardware.graphics.composer@2.1-service
+    class hal animation
+    user system
+    group graphics drmrpc
+    capabilities SYS_NICE
+    onrestart restart surfaceflinger
+    setenv LD_PRELOAD /vendor/lib/libhwcflip.so
+
+# Re-asserts rotation lock, E-Ink and battery settings after boot and guards them
+# (user_rotation resets on every boot on this device).  Script: configs/a11-boot-fixups.sh
+service a11fixups /system/bin/sh /data/local/a11-boot-fixups.sh
+    user root
+    group root shell system
+    seclabel u:r:su:s0
+    disabled
+
+on property:sys.boot_completed=1
+    start a11fixups

@@ -1,0 +1,36 @@
+diff --color -ru /Users/at10ti0n/Downloads/inkpalm-twrp-build-checkpoint/recovery-overlay/minuitwrp/epd/epd_surface.c recovery-overlay/minuitwrp/epd/epd_surface.c
+--- /Users/at10ti0n/Downloads/inkpalm-twrp-build-checkpoint/recovery-overlay/minuitwrp/epd/epd_surface.c	2026-09-10 09:42:46
++++ recovery-overlay/minuitwrp/epd/epd_surface.c	2026-09-17 02:31:01
+@@ -67,6 +67,7 @@
+              * The destination bound for dy is W-1 (not H-1) and for dx is H-1. */
+             case EPD_ROT_90_CCW: dx = sy;              dy = (W - 1) - sx;    break;
+             case EPD_ROT_90_CW:  dx = (H - 1) - sy;    dy = sx;              break;
++            case EPD_ROT_TRANSPOSE: dx = sy;           dy = sx;              break;
+             default: return false;
+             }
+             dst[(size_t)dy * EPD_WIDTH + dx] = y;
+diff --color -ru /Users/at10ti0n/Downloads/inkpalm-twrp-build-checkpoint/recovery-overlay/minuitwrp/epd/epd_surface.h recovery-overlay/minuitwrp/epd/epd_surface.h
+--- /Users/at10ti0n/Downloads/inkpalm-twrp-build-checkpoint/recovery-overlay/minuitwrp/epd/epd_surface.h	2026-09-10 09:42:46
++++ recovery-overlay/minuitwrp/epd/epd_surface.h	2026-09-17 02:31:01
+@@ -41,6 +41,9 @@
+     EPD_ROT_90_CCW,     /* dx = sy;          dy = (W-1) - sx  ; W = src width  */
+     EPD_ROT_90_CW,      /* dx = (H-1) - sy;  dy = sx           ; H = src height */
+     EPD_ROT_180,
++    EPD_ROT_TRANSPOSE,  /* dx = sy;  dy = sx.  OBSERVED CORRECT on EPD105, 2026-09-17:
++                         * CCW showed the right way up but MIRRORED left-right, i.e. the
++                         * (W-1)-sx term was wrong and the panel wants a plain transpose. */
+ } epd_rotation;
+ 
+ size_t epd_pixel_bytes(epd_pixfmt f);
+diff --color -ru /Users/at10ti0n/Downloads/inkpalm-twrp-build-checkpoint/recovery-overlay/minuitwrp/graphics_epd.cpp recovery-overlay/minuitwrp/graphics_epd.cpp
+--- /Users/at10ti0n/Downloads/inkpalm-twrp-build-checkpoint/recovery-overlay/minuitwrp/graphics_epd.cpp	2026-09-10 09:42:46
++++ recovery-overlay/minuitwrp/graphics_epd.cpp	2026-09-17 02:31:01
+@@ -35,7 +35,7 @@
+ 
+ /* Orientation stays a single named constant until the first Gate 1F-4 image settles
+  * it. Do not silently flip this - see twrp/libepd/ROTATION.md. */
+-static const epd_rotation EPD105_ROTATION = EPD_ROT_90_CCW;
++static const epd_rotation EPD105_ROTATION = EPD_ROT_TRANSPOSE;   /* fix2: observed 2026-09-17 */
+ 
+ static GRSurface  gr_surf;
+ static bool       g_armed;

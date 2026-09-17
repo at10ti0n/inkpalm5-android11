@@ -1,0 +1,7 @@
+# goodix-ts (Vendor dead Product beef) on Moaan EPD105 -- the capacitive Moaan logo below the
+# glass is reported by the touch controller as a virtual key (MEASURED 2026-09-17: KEY_HOMEPAGE).
+key 172   HOME              WAKE
+key 139   MENU              WAKE
+key 158   BACK              WAKE
+key 217   SEARCH
+key 143   WAKEUP            WAKE

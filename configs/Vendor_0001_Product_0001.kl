@@ -1,0 +1,9 @@
+# sunxi-keyboard AND pmu1736-powerkey both identify as Vendor 0001 Product 0001, so this
+# file governs both.  Volume keys turn pages (Kindle honours DPAD_RIGHT/LEFT); POWER must be
+# listed or the power button goes dead (2026-09-17 lesson).
+key 115   DPAD_LEFT         # Vol Up   = previous page (Kindle)
+key 114   SPACE             # Vol Down = next page (Kindle) / page forward (EinkBro, WebView)
+key 116   POWER             WAKE
+key 28    ENTER
+key 102   HOME
+key 139   MENU
