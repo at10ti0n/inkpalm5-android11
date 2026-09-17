@@ -26,6 +26,10 @@ calibration (`/private`, never touch it), not the GSI (download it from phhusson
 |---|---|---|
 | ![einkbro](docs/images/einkbro.png) | ![kindle-about](docs/images/kindle-about.png) | ![kindle](docs/images/kindle-reader.png) |
 
+| Sleep page (shown before sleep; the panel holds it) |
+|---|
+| ![sleep](docs/images/sleep-page.png) |
+
 Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/first-boot-mirrored.jpg` (first boot, before the composer fix).
 
 ## How it works (the parts that took weeks to find)
@@ -50,6 +54,29 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
   `einktile/` is a tiny Quick Settings app that flips them.
 * **ADB in Android 11**: PHH's `/cache/phh-adb` switch (adbd is script-launched; never
   `adb root`, it kills it until reboot).
+
+## Quirks and workarounds (where native Android 11 did not work here, and what was built instead)
+Each entry: the native mechanism that should have done the job, what actually happened on this
+device, the workaround shipped, and the cleaner fix if someone wants to do it properly.
+
+| # | Native mechanism | What happened on EPD105 | Workaround shipped | Proper fix |
+|---|---|---|---|---|
+| 1 | Android 9+ `init`/ueventd creates `/dev/block/by-name/*` from `androidboot.boot_devices` or the DT `firmware/android` node | Neither exists; every by-name mount in TWRP failed for a month (blank logo) | 15 `symlink` lines in the recovery rc from the fixed `partitions=` cmdline map | Bootloader/DT `boot_devices`; or a vendor-style init that makes the links |
+| 2 | minui framebuffer backend (`/dev/graphics/fb0`) | The panel is not driven by fb0; it needs a Y8 buffer through `DISP_EINK_UPDATE2` on `/dev/disp`, transposed, and the Goodix axes are swapped | `libepdfix.so` LD_PRELOAD inside `recovery` (transpose + axis swap) | Rebuild TWRP with `twrp/overlay/` (EPD backend + `RECOVERY_TOUCHSCREEN_SWAP_XY`) |
+| 3 | GSI's own Android 11 `init` (apexd, linkerconfig) | Never used: the stock 8.1 boot ramdisk `init` runs the GSI; PHH's rc does flattened apex binds | 2-byte permissive-init patch + prepended rc (`a11boot/`) | Proper Android 11 boot image / vendor SELinux policy |
+| 4 | Vendor HWC presents SurfaceFlinger's client target | It reflects every frame along the panel's long axis; no rotation cancels a reflection | `libhwcflip.so` LD_PRELOAD into the composer service: copy-mirror each UPDATE2 layer into a private ION ring | Fix in the vendor HWC (no source) or a corrected panel/G2D path |
+| 5 | `ro.surface_flinger.primary_display_orientation` | Rotates the picture but InputReader sees viewport orientation 0 -> touch transposed | Natural 1280x720 + `wm set-user-rotation lock 1` + `set-fix-to-user-rotation` + `.idc` (orientation-aware touchscreen) | HWC/display config reporting the panel as portrait, so input and SF agree |
+| 6 | `user_rotation` setting persistence | Resets to 0 on every boot (cause not identified) | Boot fixups service re-applies it and a 15 s guard loop re-locks if auto-rotate is toggled | Find the resetter (likely a framework default on a display without a sensor) |
+| 7 | Apps that request the *natural* orientation (Launcher3, some readers) | Letterboxed into a 720x405 box because natural is landscape | Launcher3 `pref_allowRotation`; per-app for others | Same as 5 |
+| 8 | Framework USB gadget setup (`init.usb.configfs.rc` from the 8.1 ramdisk driving Android 11 adbd) | The chain never binds the UDC; the host sees no USB device | PHH's `/cache/phh-adb` script-launched adbd (never `adb root`: it kills it) | Fix the ffs.ready/UDC chain for the A11 adbd; or a proper `init.usb` for this vendor |
+| 9 | `SurfaceControl.setRefreshMode` / `forceGlobalRefresh` (stock Allwinner SF binder API used by stock apps) | Absent in AOSP SurfaceFlinger; the stock SystemUI tile broadcasts `android.eink.force.refresh` to nobody | The HWC reads `persist.sys.mRefreshMode` per frame and `persist.sys.canRefresh=1` as a one-shot; `einktile` writes them via su; `persist.display.gu16_max_limit` auto-refreshes | An app-facing refresh API (HAL extension or a small system service) |
+| 10 | Always-On Display / doze as a sleep screen | `DozeService` never starts; display goes straight to OFF | Boot fixups loop shows `SleepActivity` after 2 min idle then sleeps; Android's own timeout is a 10 min fallback | Working doze config (`config_dozeComponent`, AOD overlay) |
+| 11 | Volume keys in reading apps | No common key: Kindle turns on DPAD/Space, WebView on Page keys | System-wide `.kl`: Vol Down = SPACE, Vol Up = DPAD_LEFT | Per-app remap (Key Mapper) |
+| 12 | Separate key layouts per input device | The power key and the volume keys share Vendor 0001/Product 0001, so one `.kl` governs both | `POWER WAKE` listed in the same file | Distinct IDs in the kernel drivers |
+| 13 | Capacitive Moaan logo as a gesture area | The touch controller reports it as one key (`KEY_HOMEPAGE`), no coordinates | HOME + WAKE via `.kl` | Controller firmware/driver change |
+| 14 | Framework `exec` in the 8.1 init | Temporary `exec` children never ran (Gate 1F a6) | Declared oneshot/long-running services only | -- |
+| 15 | Telephony | Vendor declares GSM/IMS it has no hardware for | PHH no-RIL; phone process idle | Vendor manifest without telephony |
+| 16 | Screenshots of DRM readers | Kindle's reader surface is secure: screencap shows white | -- | -- |
 
 ## Layout
     twrp/       mktwrp.py + twrp-epd105-ramdisk.cpio.gz + libepdfix.c + overlay patch

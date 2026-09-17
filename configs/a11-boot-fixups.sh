@@ -11,6 +11,10 @@ settings put global window_animation_scale 0
 settings put global transition_animation_scale 0
 settings put global animator_duration_scale 0
 settings put global stay_on_while_plugged_in 0
+# Android's own timeout is only the FALLBACK; the loop below shows the E-Ink sleep page at
+# SLEEP_AFTER_MS of inactivity and then sleeps the device (panel keeps the page).
+settings put system screen_off_timeout 600000
+SLEEP_AFTER_MS=120000
 [ -z "$(getprop persist.sys.mRefreshMode)" ] && setprop persist.sys.mRefreshMode 132
 # auto full refresh after N partial updates (HWC updateGu16Refreshlimit); 0 = never (stock)
 [ -z "$(getprop persist.display.gu16_max_limit)" ] && setprop persist.display.gu16_max_limit 10
@@ -25,6 +29,14 @@ while true; do
   if [ "$(settings get system accelerometer_rotation)" = 1 ] || [ "$(settings get system user_rotation)" != 1 ]; then
     settings put system accelerometer_rotation 0; settings put system user_rotation 1
     wm set-user-rotation lock 1; echo "$(date) re-locked rotation" >> $L
+  fi
+  # --- E-Ink sleep page: idle for SLEEP_AFTER_MS while awake -> show page, then sleep ---
+  if [ "$(dumpsys power 2>/dev/null | grep -oE 'mWakefulness=[A-Za-z]+' | head -1)" = "mWakefulness=Awake" ]; then
+    idle=$(dumpsys power 2>/dev/null | grep -oE 'mLastUserActivityTime=[0-9]+ \([0-9]+ ms ago' | grep -oE '[0-9]+ ms' | grep -oE '[0-9]+')
+    if [ -n "$idle" ] && [ "$idle" -ge "$SLEEP_AFTER_MS" ]; then
+      am start -n net.inkpalm.einktile/.SleepActivity >/dev/null 2>&1; sleep 4
+      input keyevent KEYCODE_SLEEP; echo "$(date) sleep page shown, device slept (idle ${idle}ms)" >> $L
+    fi
   fi
   sleep 15
 done

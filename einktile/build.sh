@@ -7,7 +7,7 @@ rm -rf build; mkdir -p build/gen build/cls build/res
 sed "s/MODE_TEXT_PLACEHOLDER/$TEXT/; s/MODE_GRAPHICS_PLACEHOLDER/$GFX/" src/net/inkpalm/einktile/Props.java > build/gen/Props.java
 $BT/aapt2 compile --dir res -o build/res.zip
 $BT/aapt2 link -o build/base.apk -I "$AJ" --manifest AndroidManifest.xml --java build/gen build/res.zip
-javac -source 8 -target 8 -bootclasspath "$AJ" -classpath "$AJ" -d build/cls build/gen/net/inkpalm/einktile/R.java build/gen/Props.java src/net/inkpalm/einktile/ModeTile.java src/net/inkpalm/einktile/RefreshTile.java 2>&1 | grep -v 'bootstrap class path' || true
+javac -source 8 -target 8 -bootclasspath "$AJ" -classpath "$AJ" -d build/cls build/gen/net/inkpalm/einktile/R.java build/gen/Props.java src/net/inkpalm/einktile/ModeTile.java src/net/inkpalm/einktile/RefreshTile.java src/net/inkpalm/einktile/SleepActivity.java 2>&1 | grep -v 'bootstrap class path' || true
 $BT/d8 --release --min-api 24 --output build/ $(find build/cls -name '*.class')
 cp build/base.apk build/unsigned.apk; (cd build && zip -q unsigned.apk classes.dex)
 $BT/zipalign -f 4 build/unsigned.apk build/aligned.apk

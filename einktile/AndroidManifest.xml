@@ -10,5 +10,6 @@
              android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
       <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter>
     </service>
+    <activity android:name=".SleepActivity" android:label="Sleep" android:exported="true" android:excludeFromRecents="true" android:noHistory="true" android:theme="@android:style/Theme.Material.Light.NoActionBar.Fullscreen"/>
   </application>
 </manifest>
