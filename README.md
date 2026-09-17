@@ -7,8 +7,9 @@ display and touch.  Stock firmware is Android 8.1.
 **What works:** boots, E Ink panel (correct orientation, no mirroring), touch, Wi-Fi, ADB from
 boot, Quick Settings tiles for the panel's Text/Graphics waveform and a manual full refresh,
 volume buttons as page-turn keys, the capacitive logo as Home/wake, Unlauncher, Kindle,
-EinkBro, Aurora Store.  **Not done / unknown:** audio, Bluetooth (turned off), long-term
-battery figures, GPS (the device has none).
+EinkBro, Aurora Store.  **Untested:** audio (declared, no speaker, nothing played yet), Bluetooth (declared, kept
+off), battery life (no measured figures).  No NFC/GPS hardware; telephony is declared but
+absent (PHH no-RIL).
 
 **Prebuilt images:** https://github.com/at10ti0n/inkpalm5-android11/releases/tag/v1 (verify SHA256SUMS).
 The repository itself is *builders and sources*: each script takes **your

@@ -29,7 +29,11 @@ Things that were genuinely non-obvious, in case they help other Allwinner E Ink 
 * The vendor HWC reads persist.sys.mRefreshMode per frame and persist.sys.canRefresh=1 as a
   one-shot full refresh (found by decompiling the HWC); stock's modes are 2 (DU) and 132.
 
-Not done: audio, Bluetooth, battery figures.  The device has no NFC/GPS.  Standard warning:
+Untested rather than broken: audio (output + mic are declared and AudioFlinger runs, but no
+speaker on this device and nothing played yet), Bluetooth (declared, switched off for battery,
+never paired), battery life (obvious drains removed, no measured figures).  No NFC and no GPS
+hardware (network location only).  The vendor declares telephony it doesn't have; PHH runs it
+in no-RIL mode, harmless.  Standard warning:
 this can brick a device, keep your stock images, never write the /private partition (panel
 calibration).
 
