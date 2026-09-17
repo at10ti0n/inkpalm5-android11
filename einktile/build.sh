@@ -7,10 +7,11 @@ rm -rf build; mkdir -p build/gen build/cls build/res
 sed "s/MODE_TEXT_PLACEHOLDER/$TEXT/; s/MODE_GRAPHICS_PLACEHOLDER/$GFX/" src/net/inkpalm/einktile/Props.java > build/gen/Props.java
 $BT/aapt2 compile --dir res -o build/res.zip
 $BT/aapt2 link -o build/base.apk -I "$AJ" --manifest AndroidManifest.xml --java build/gen build/res.zip
-javac -source 8 -target 8 -bootclasspath "$AJ" -classpath "$AJ" -d build/cls build/gen/net/inkpalm/einktile/R.java build/gen/Props.java src/net/inkpalm/einktile/ModeTile.java src/net/inkpalm/einktile/RefreshTile.java src/net/inkpalm/einktile/SleepActivity.java 2>&1 | grep -v 'bootstrap class path' || true
+javac -source 8 -target 8 -bootclasspath "$AJ" -classpath "$AJ" -d build/cls build/gen/net/inkpalm/einktile/R.java build/gen/Props.java src/net/inkpalm/einktile/ModeTile.java src/net/inkpalm/einktile/RefreshTile.java src/net/inkpalm/einktile/RefreshReceiver.java 2>&1 | grep -v 'bootstrap class path' || true
 $BT/d8 --release --min-api 24 --output build/ $(find build/cls -name '*.class')
 cp build/base.apk build/unsigned.apk; (cd build && zip -q unsigned.apk classes.dex)
 $BT/zipalign -f 4 build/unsigned.apk build/aligned.apk
-[ -f build/../keystore.jks ] || keytool -genkeypair -keystore keystore.jks -storepass einktile -keypass einktile -alias einktile -dname "CN=inkpalm einktile" -keyalg RSA -keysize 2048 -validity 10000 >/dev/null 2>&1
-$BT/apksigner sign --ks keystore.jks --ks-pass pass:einktile --key-pass pass:einktile --out build/einktile.apk build/aligned.apk
+# Platform-signed: the GSI's platform certificate is the public AOSP test key (keys/), which
+# lets sharedUserId=android.uid.system take effect.  Never use these keys for anything else.
+$BT/apksigner sign --key ../keys/platform.pk8 --cert ../keys/platform.x509.pem --out build/einktile.apk build/aligned.apk
 echo "built build/einktile.apk sha256 $(shasum -a256 build/einktile.apk | cut -c1-16)"

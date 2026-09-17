@@ -51,7 +51,8 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
 * **E Ink refresh control**: the vendor HWC reads `persist.sys.mRefreshMode` per frame and
   `persist.sys.canRefresh=1` as a one-shot full refresh (Ghidra decompile, see
   `docs/REFRESH-CONTROL.md`).  Stock's two modes are Text = 2 (DU) and Graphics = 132.
-  `einktile/` is a tiny Quick Settings app that flips them.
+  `einktile/` is a tiny Quick Settings app that flips them -- v2 runs as the system UID
+  (platform-signed with the GSI's AOSP test key), so no root is involved.
 * **ADB in Android 11**: v1 uses PHH's script-launched fallback (`adb root` breaks it).
   The post-v1 [second pass](docs/NATIVE-A11-SECOND-PASS.md) restores init-managed
   ADB, including working root/unroot restarts.

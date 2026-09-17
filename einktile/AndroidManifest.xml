@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="net.inkpalm.einktile" android:versionCode="1" android:versionName="1.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="net.inkpalm.einktile" android:sharedUserId="android.uid.system" android:versionCode="2" android:versionName="2.0">
   <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="27"/>
   <application android:label="E-Ink Mode" android:icon="@drawable/ic_tile">
     <service android:name=".ModeTile" android:label="E-Ink Mode" android:icon="@drawable/ic_tile"
@@ -11,5 +11,9 @@
       <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter>
     </service>
     <activity android:name=".SleepActivity" android:label="Sleep" android:exported="true" android:excludeFromRecents="true" android:noHistory="true" android:theme="@android:style/Theme.Material.Light.NoActionBar.Fullscreen"/>
+    <!-- stock Moaan apps and the stock SystemUI tile broadcast this for a full refresh -->
+    <receiver android:name=".RefreshReceiver" android:exported="true">
+      <intent-filter><action android:name="android.eink.force.refresh"/></intent-filter>
+    </receiver>
   </application>
 </manifest>
