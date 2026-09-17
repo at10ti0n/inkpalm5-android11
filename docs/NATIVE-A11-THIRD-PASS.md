@@ -31,10 +31,42 @@ So the next battery lever is the `sy7673a` (panel power) wake source -- how ofte
 wakes it and whether the E-Ink power rail is left up between updates -- not telephony.
 Rollback: copy the two XMLs back from the backup with a rw remount and reboot.
 
-## 3.2 Natural portrait experiment -- boot image built, NOT flashed
+## 3.2 Natural portrait experiment -- MEASURED NEGATIVE, rolled back
 `a11boot/mkboot.py` accepts `A11_SF_ORIENTATION=90` to add
 `setprop ro.surface_flinger.primary_display_orientation ORIENTATION_90` to the prepended rc.
-Test plan: flash, keep `user_rotation=0`, keep the orientation-aware `.idc`, then read the
-input viewport and one corner tap.  If touch follows the rotated viewport, natural becomes
-portrait (no letterboxing, no landscape startup, no fixed-to-user-rotation dependency).
-The earlier transposed-touch result predates the `.idc`, so it is not evidence either way.
+Built `boot-sf90-experiment.img` (sha256 796e8061...), flashed to boot (read-back verified),
+with `user_rotation=0`, `wm set-fix-to-user-rotation disabled` and the orientation-aware
+`Vendor_dead_Product_beef.idc` in place.  Readings on the running device (2026-09-17):
+
+```
+ro.surface_flinger.primary_display_orientation=ORIENTATION_90
+wm size: Physical size: 720x1280
+mRotation=0 mFixedToUserRotation=false
+Viewport INTERNAL ... orientation=0, logicalFrame=[0, 0, 720, 1280], deviceSize=[720, 1280]
+Touch Input Mapper: OrientationAware: true
+  RawSurfaceWidth: 720px  RawSurfaceHeight: 1280px  SurfaceOrientation: 0
+  XScale: 0.562  YScale: 1.775
+```
+
+Reading: SF's own orientation makes the display *look* portrait, but InputReader sees a
+viewport with `orientation=0` and a 720x1280 surface, so it stretches the digitizer's raw
+1280x720 axes straight onto it (0.562 = 720/1280, 1.775 = 1280/720) -- touch is transposed
+again.  The `.idc` cannot help: `orientationAware` only rotates by the viewport orientation,
+which is 0 here because the rotation happened below the framework.  This is the same
+failure as Gate 14, now with the `.idc` ruled out as the missing piece.
+
+Conclusion: natural-portrait via `primary_display_orientation` is not achievable on this
+panel/touch pair without a touch driver that reports rotated axes.  Fixed-to-user rotation
+(`accelerometer_rotation=1`, `user_rotation=1`, `wm set-fix-to-user-rotation enabled`) on a
+natural 1280x720 display remains the route; it is the framework-native one anyway.
+The `A11_SF_ORIENTATION` option stays in `mkboot.py` (off by default) for anyone who wants
+to repeat the measurement.
+
+Rollback: the device was reflashed with a boot built from THIS repo as published
+(`python3 a11boot/mkboot.py <stock boot.img> boot.img`, no options) -- sha256 c6f97ad6...
+It boots, `a11fixups` ran (log `done`), and after re-applying the three rotation settings:
+`mRotation=1 mFixedToUserRotation=true`, viewport `orientation=1`, `XScale: 0.999
+YScale: 0.999`.  Note: this is the first boot of the *clean* repo build; the v1 release
+image (60bf6233...) still carries the gate17 trial instrumentation (`/collector`, `g17wdog`,
+p13 markers) in its prepended rc.  Functionally equivalent; the clean build is what a fresh
+clone produces and it is now verified on hardware.
