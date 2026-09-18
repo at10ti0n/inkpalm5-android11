@@ -1,6 +1,7 @@
 #!/bin/bash
-# Make a short power press show the lock screen BEFORE the display goes off, so the E Ink
-# panel holds the standby image through sleep instead of the app that was open.
+# Make a short power press -- and the idle timeout -- show the lock screen BEFORE the
+# display goes off, so the E Ink panel holds the standby image through sleep instead of the
+# app that was open.
 #
 # Unpatched Android shows the keyguard and switches the display off at the same time; on
 # E Ink the last composited frame is what stays, and the keyguard loses that race every
@@ -25,16 +26,18 @@ say() { printf '\n== %s\n' "$*"; }
 say "decompiling services.jar (a minute or two)"
 apktool d -f -o "$W/src" "$JAR" >/dev/null
 PWM=$(find "$W/src" -name PhoneWindowManager.smali | head -1)
-[ -n "$PWM" ] || { echo "PhoneWindowManager.smali not found" >&2; exit 1; }
+PMS=$(find "$W/src" -name PowerManagerService.smali | head -1)
+[ -n "$PWM" ] && [ -n "$PMS" ] || { echo "PhoneWindowManager/PowerManagerService smali not found" >&2; exit 1; }
 
-say "applying the patch"
+say "applying the patch (power press + idle timeout)"
 cp "$HERE/InkpalmSleep.smali" "$(dirname "$PWM")/InkpalmSleep.smali"
-python3 "$HERE/patch-powerpress.py" "$PWM"
+cp "$HERE/InkpalmTimeoutSleep.smali" "$(dirname "$PMS")/InkpalmTimeoutSleep.smali"
+python3 "$HERE/patch-powerpress.py" "$PWM" "$PMS"
 
 say "rebuilding"
 apktool b -f "$W/src" -o "$OUT" >/dev/null
 # (dexdump's output goes to a file: grep -q closing the pipe early would trip pipefail)
-( cd "$W" && unzip -q -o "$OUT" classes.dex && "$BT/dexdump" -d classes.dex > dump.txt 2>/dev/null && grep -q inkpalmSleepNow dump.txt ) \
+( cd "$W" && unzip -q -o "$OUT" classes.dex && "$BT/dexdump" -d classes.dex > dump.txt 2>/dev/null && grep -q "PhoneWindowManager;.inkpalmSleepNow" dump.txt && grep -q "PowerManagerService;.inkpalmSleepNow" dump.txt ) \
   || { echo "self-check failed: patched method not in classes.dex" >&2; exit 1; }
 echo
 echo "wrote $OUT  (sha256 $(shasum -a256 "$OUT" | cut -c1-16))"

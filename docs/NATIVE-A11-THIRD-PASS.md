@@ -310,5 +310,10 @@ Fix, framework side (`framework/patch-services.sh`): the GO_TO_SLEEP case of
 sleep 800 ms later; if the keyguard is already showing it sleeps at once, as before.
 Measured: keyguard visible 400 ms after the press, sleep at 850 ms, 3 panel cycles in the
 window. Precompiled `services.odex/vdex/art` are removed (backed up) so the patched dex runs.
-The 2-minute idle timeout still sleeps directly -- it goes through `PowerManagerService`,
-not `powerPress` -- so an idle timeout still leaves the app frame on the panel; open.
+The idle timeout goes through `PowerManagerService.updateWakefulnessLocked`, not
+`powerPress`, so it got the same treatment: instead of `goToSleepNoUpdateLocked` it posts
+`InkpalmTimeoutSleep` (stage 0: `mPolicy.lockNow`; stage 1, 800 ms later: the original sleep
+with reason TIMEOUT) and arms a flag so the bedtime checks that keep firing in between do
+nothing. Measured with a 15 s timeout: `showLocked` at T, `Going to sleep due to timeout`
+at T+795 ms. Test-setup lesson: `input keyevent KEYCODE_WAKEUP` lands on the lock screen,
+where both patches deliberately sleep at once -- dismiss it and check `mIsShowing` first.

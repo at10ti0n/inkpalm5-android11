@@ -56,8 +56,9 @@ off is built the same way, from your own `services.jar`:
 adb pull /system/framework/services.jar
 bash framework/patch-services.sh services.jar services-powerpress.jar
 ```
-It adds one tiny smali class and edits one case in `PhoneWindowManager.powerPress`
-(`framework/patch-powerpress.py` shows exactly what). The installer removes the
+It adds two tiny smali classes and edits one case each in `PhoneWindowManager.powerPress`
+and `PowerManagerService.updateWakefulnessLocked` (`framework/patch-powerpress.py` shows
+exactly what). The installer removes the
 precompiled `services.odex` so the patched dex is the one that runs. Re-run it after any GSI update — a GSI flash puts the stock
 SystemUI back.
 
@@ -83,7 +84,7 @@ why each piece is needed.
 | `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
 | `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, warmth, portrait/landscape (v4) |
 | `SystemUI-warmth.apk` | patched SystemUI: Screen Temperature slider, lock-screen clock hidden (GSI-specific) |
-| `services-powerpress.jar` | patched framework: power press shows the lock screen, then sleeps 800 ms later (GSI-specific) |
+| `services-powerpress.jar` | patched framework: power press and idle timeout show the lock screen, then sleep 800 ms later (GSI-specific) |
 
 Design notes for all of these are in `docs/`; start with
 [REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).

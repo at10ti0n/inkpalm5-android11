@@ -199,8 +199,8 @@ is still caught.
   clock back on if you want it; see [docs/SUSPEND-DIAGNOSIS.md](docs/SUSPEND-DIAGNOSIS.md).
   Instead the device sleeps on a **static standby image** (the lock-screen wallpaper, like
   stock; the patched SystemUI from step 7 hides the clock, and the patched framework from
-  the same step shows the lock screen *before* the display goes off -- without that, the
-  E Ink panel keeps whatever app was open): the panel holds it with zero redraws. To change it, put
+  the same step shows the lock screen *before* the display goes off, on a power press and
+  on the idle timeout alike -- without that, the E Ink panel keeps whatever app was open): the panel holds it with zero redraws. To change it, put
   any 720x1280 image at `docs/images/standby.png` and re-run `install/from-android.sh`.
 
 * **The Screen Temperature slider and the standby screen are tied to GSI v313.** They live inside SystemUI and the framework (`services.jar`), and a
