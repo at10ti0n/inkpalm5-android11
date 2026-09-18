@@ -30,6 +30,10 @@ calibration (`/private`, never touch it), not the GSI (download it from phhusson
 |---|---|---|
 | ![einkbro](docs/images/einkbro.png) | ![kindle-about](docs/images/kindle-about.png) | ![kindle](docs/images/kindle-reader.png) |
 
+| Kindle side menu -- the menu over the reader, the page carousel and location slider behind it, and the Android 11 status and navigation bars |
+|---|
+| ![kindle-menu](docs/images/kindle-menu.png) |
+
 Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/first-boot-mirrored.jpg` (first boot, before the composer fix).
 
 ## How it works (the parts that took weeks to find)
