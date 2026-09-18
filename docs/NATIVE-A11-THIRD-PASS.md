@@ -110,3 +110,37 @@ composer shim, background load and CPU governor all measured and ruled out as th
 the clean-boot idle is 368%/400%.  Full evidence and the ranked next steps are in
 `docs/INCIDENT-SF-LIVELOCK.md`.  Leading untested hypothesis: the doze/AOD transition on
 unplug, which is our own overlay work.
+
+
+## 3.11 Vendor RIL daemons stopped -- the 2-second retry loop is gone
+Found while diagnosing the SF livelock (§3.10): `rild` logs
+`fd = -1, sleep 2s wait device, total wait time: 3050s` -- it retries a modem device node
+that does not exist, every 2 seconds, for the entire boot. This device has no modem and the
+framework already knows (`ro.radio.noril=true`, `ril.sw.modem.status=off`), but the vendor
+still starts two daemons for it:
+
+```
+/vendor/etc/init/rild.rc           service ril-daemon        class main
+                                   group ... wakelock   capabilities BLOCK_SUSPEND
+/vendor/etc/init/radio_monitor.rc  service radio_monitor-daemon  class main
+                                   capabilities BLOCK_SUSPEND
+```
+Neither uses measurable CPU (`rild` never appears in `top` -- it sleeps between retries), so
+this is not a CPU drain. What it is: a 0.5 Hz wakeup that never stops, from two daemons both
+declared able to block suspend, on a device whose battery story is entirely about staying
+suspended.
+
+`configs/a11-boot-fixups.sh` now stops both at `sys.boot_completed`. Measured after a
+reboot: `init.svc.ril-daemon=stopped`, `init.svc.radio_monitor-daemon=stopped`, **0** retry
+lines in 20 s (was one every 2 s), no FATAL entries, SystemUI and Settings healthy, portrait
+rotation intact. **Wi-Fi is unaffected** -- verified by re-associating afterwards: supplicant
+`COMPLETED`, DHCP address, 15 ms ping, `WIFI[] state: CONNECTED`. RIL is the cellular stack;
+Wi-Fi runs on `android.hardware.wifi@1.0-service` + `wificond` + `wpa_supplicant`, untouched.
+
+Stopping at boot-completed rather than never starting them leaves them running for the first
+~60 s of each boot. Preventing that entirely would mean declaring both service names in
+`a11boot/a11-prepend.rc` as `disabled` (the same first-definition-wins trick used for
+`hwcomposer-2-1`), which costs a new boot image; not worth it for 60 seconds.
+
+The actual mAh saved is still **unmeasured** -- like everything else in §3.8, it needs the
+unplugged interval.

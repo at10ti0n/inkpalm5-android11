@@ -17,4 +17,12 @@ svc bluetooth disable; settings put global bluetooth_on 0
 settings put secure location_mode 0
 settings put global wifi_scan_always_enabled 0; settings put global ble_scan_always_enabled 0
 dumpsys deviceidle enable >/dev/null 2>&1
+# No modem on this device and the framework already knows (ro.radio.noril=true), but the
+# vendor still starts rild and radio_monitor, both declared with `capabilities BLOCK_SUSPEND`
+# (rild is in the wakelock group too). rild then retries a device node that does not exist
+# every 2 s for the life of the boot -- MEASURED "fd = -1, sleep 2s wait device, total wait
+# time: 3050s". Costs no measurable CPU, but it is a 0.5 Hz wakeup that never ends.
+# Stopping them leaves Settings, SystemUI and the phone process healthy (verified).
+stop ril-daemon 2>/dev/null
+stop radio_monitor-daemon 2>/dev/null
 echo "$(date) done user_rotation=$(settings get system user_rotation)" >> $L
