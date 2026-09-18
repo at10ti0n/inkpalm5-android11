@@ -107,9 +107,15 @@ SystemUI patch, kept as small as it can be:
   backlight call and the lights HAL re-applies with the new warmth. Applies on a 300 ms
   throttle while dragging (each apply costs a panel refresh) and once on release.
 * `systemui/quick_settings_brightness_dialog.xml` -- the stock brightness layout with the
-  original row untouched inside a vertical wrapper, plus the new view as a second child.
-  **It carries no `android:id`**, so no new resource is added and the resource table is
-  unchanged; the view finds its own state, so `QSPanel` needs no patch at all.
+  original `ToggleSliderView` untouched (same id, size and weight) inside a vertical wrapper,
+  plus the new view as a second row. Both rows are labelled: **Brightness** with `-` / `+` at
+  the ends, **Screen Temperature** with **Cool** / **Warm**. "Brightness" reuses SystemUI's
+  own localised `quick_settings_brightness_label`; the rest are literals, so this is
+  English-only. Both rows share 8dp side padding and 52dp end-label widths so the two tracks
+  line up (they differ by ~4dp in practice -- `ToggleSliderView` carries internal padding a
+  bare `SeekBar` does not).
+  **Nothing here declares an `android:id`**, so no new resource is added and the resource
+  table is unchanged; the view finds its own state, so `QSPanel` needs no patch at all.
 * `systemui/patch-systemui.sh` -- does the whole build: compiles the class, converts it to
   smali, decompiles SystemUI, drops both in, rebuilds, signs with the platform key and
   **refuses to emit an APK whose certificate does not match the original**.
