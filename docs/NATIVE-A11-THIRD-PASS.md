@@ -281,3 +281,18 @@ off by default in `configure-native.sh`. Keeping AOD needs a kernel-side change 
 touch IRQ while the panel is powered, or extend `sy7673a_wakelock` past power-down) -- the
 first concrete, measured justification for kernel driver work found in this project. Full
 evidence, both runs, and a reproducible parser: `docs/SUSPEND-DIAGNOSIS.md`.
+
+## 3.16 Static standby image instead of AOD (stock-style sleep screen)
+With doze fully off (`doze_enabled 0`, `doze_always_on 0`) the sleep transition draws the
+keyguard -- clock, date, lock-screen wallpaper -- and then the display goes OFF. The E Ink
+panel keeps that frame at no cost, which is exactly how stock 8.1 did its standby screen.
+Measured on USB: `sy7673a_wakelock` +5 cycles at sleep entry, +0 over the next 60 s,
+`mWakefulness=Asleep`, `Display Power: state=OFF`.
+
+Two obstacles. Android 11 has no shell path to a lock wallpaper (`cmd wallpaper` is empty),
+so einktile v4 gained `LockWallpaperReceiver`: a broadcast with a file path calls
+`WallpaperManager.setStream(..., FLAG_LOCK)` from the system UID. And Unlauncher repaints
+both wallpapers plain white on every resume (`updateWallpaperBitmapLocked` 22 ms after
+`wm_on_resume_called`) unless its `KEEP_DEVICE_WALLPAPER` preference (proto field 2 in
+`core_preferences.proto`) is set; `install/from-android.sh` appends that field. The default
+image is `docs/images/standby.png` (720x1280, letterpress type).

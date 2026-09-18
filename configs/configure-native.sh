@@ -9,7 +9,11 @@ wm set-fix-to-user-rotation enabled
 settings put system accelerometer_rotation 1
 settings put system user_rotation 1
 settings put system screen_off_timeout 120000
-settings put secure doze_enabled 1
+# Doze is OFF: the sleep transition then ends on the keyguard (clock + lock wallpaper),
+# the display goes OFF, and the E Ink panel holds that frame for free -- a stock-style
+# static standby screen. MEASURED 2026-09-19: ~5 panel cycles at sleep entry, 0 while
+# asleep. install/from-android.sh sets the standby image (docs/images/standby.png).
+settings put secure doze_enabled 0
 # AOD is OFF by default as of 2026-09-19. MEASURED (docs/SUSPEND-DIAGNOSIS.md): with AOD on,
 # every E Ink redraw on resume induces spurious touch events (34 touch-wakes in 5 min,
 # 12 failed suspends, suspend never holds); with AOD off the same run gave 4 clean suspends

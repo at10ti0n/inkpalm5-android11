@@ -107,7 +107,7 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
     einktile/   Quick Settings tiles (build.sh: Android build-tools + JDK 11)
     install/    from-twrp.sh + from-android.sh (the install guide runs these)
     frontlight/ replacement lights HAL: brightness slider + warmth
-    systemui/   the warmth slider line added to the Quick Settings panel
+    systemui/   SystemUI patch: warmth slider in Quick Settings, lock-screen clock hidden
     docs/       REFRESH-CONTROL.md, FRONTLIGHT.md, INCIDENT-SF-LIVELOCK.md, images/
 
 ## Credits

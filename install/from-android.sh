@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run from your COMPUTER once Android 11 has finished its first boot and `adb devices`
 # shows "device".  Installs the key layouts, touch config and tiles, then applies the
-# native configuration (portrait, AOD, timeouts, radios off).  Safe to re-run.
+# native configuration (portrait, standby image, timeouts, radios off).  Safe to re-run.
 # Usage:   bash install/from-android.sh <assets-dir>
 set -euo pipefail
 A=${1:?usage: from-android.sh <assets-dir>}
@@ -51,6 +51,30 @@ say "applying the native configuration (portrait, AOD, timeouts, radios off)"
 adb shell "su -c 'sh /sdcard/configure-native.sh && rm -f /sdcard/configure-native.sh && echo \"  configure-native done\"'" | tr -d '\r'
 adb shell "su -c 'sh /data/local/a11-boot-fixups.sh; echo \"  startup settings applied\"'" | tr -d '\r'
 adb shell "su -c 'setprop persist.sys.frontlight.warm 10'"
+
+# Standby image: with doze off the device sleeps on the keyguard and the E Ink panel keeps
+# that frame, so the lock-screen wallpaper IS the standby screen. Android 11 has no shell
+# command for lock wallpapers; einktile (system UID) sets it from a file on broadcast.
+# Replace docs/images/standby.png with any 720x1280 image to change it.
+say "standby image (lock-screen wallpaper)"
+adb push "$R/docs/images/standby.png" /data/local/tmp/standby.png >/dev/null
+adb shell "su -c '
+chmod 0644 /data/local/tmp/standby.png
+am broadcast -n net.inkpalm.einktile/.LockWallpaperReceiver -a net.inkpalm.einktile.SET_LOCK_WALLPAPER --include-stopped-packages --es path /data/local/tmp/standby.png >/dev/null 2>&1
+sleep 3
+grep -q \"<kwp\" /data/system/users/0/wallpaper_info.xml && echo \"  lock wallpaper set\" || echo \"  lock wallpaper NOT set (is einktile v4+ installed?)\"
+# Unlauncher repaints BOTH wallpapers plain white every time it resumes unless its
+# KEEP_DEVICE_WALLPAPER preference (proto field 2) is on. Set it if the launcher is present.
+P=/data/data/com.jkuester.unlauncher/files/datastore/core_preferences.proto
+if [ -d \$(dirname \$P) ]; then
+  am force-stop com.jkuester.unlauncher
+  if [ ! -f \$P ] || ! od -An -tx1 \$P | tr -d \" \\n\" | grep -q 1001; then
+    printf \"\\020\\001\" >> \$P
+    chown \$(stat -c %U:%G /data/data/com.jkuester.unlauncher) \$P; chmod 600 \$P
+    echo \"  Unlauncher: keep-device-wallpaper enabled\"
+  fi
+fi
+'" | tr -d '\r'
 
 # The warmth slider lives inside SystemUI, and a patched SystemUI only matches the exact
 # GSI build it was decompiled from -- so this replaces SystemUI ONLY when the one on the

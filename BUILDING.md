@@ -44,6 +44,8 @@ adb pull /system/system_ext/priv-app/SystemUI/SystemUI.apk      # after the GSI 
 adb pull /system/framework/framework-res.apk
 bash systemui/patch-systemui.sh SystemUI.apk framework-res.apk SystemUI-warmth.apk
 ```
+The same patch also hides the lock-screen clock and date, so the sleep screen is only the
+standby image; `KEEP_CLOCK=1 bash systemui/patch-systemui.sh ...` leaves the clock in.
 It needs `apktool` 3.x on top of the tools above, and prints the install and rollback
 commands when it finishes. Re-run it after any GSI update — a GSI flash puts the stock
 SystemUI back.
@@ -69,7 +71,7 @@ why each piece is needed.
 | `lights.virgo.so` | `/vendor/lib/hw/` — drives the real LM3630A front light |
 | `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
 | `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, warmth, portrait/landscape (v4) |
-| `SystemUI-warmth.apk` | patched SystemUI adding the Screen Temperature slider (GSI-specific) |
+| `SystemUI-warmth.apk` | patched SystemUI: Screen Temperature slider, lock-screen clock hidden (GSI-specific) |
 
 Design notes for all of these are in `docs/`; start with
 [REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).

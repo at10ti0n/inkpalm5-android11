@@ -1,6 +1,7 @@
 #!/bin/bash
 # Add the front-light warmth slider to the Quick Settings panel, as a second line directly
-# under the brightness slider.
+# under the brightness slider -- and hide the lock-screen clock/date, so the sleep screen is
+# just the standby image (set KEEP_CLOCK=1 to leave the clock alone).
 #
 # Works on YOUR OWN SystemUI.apk, the same way the TWRP and boot builders work on your own
 # stock images -- because a patched SystemUI only matches the exact GSI build it came from,
@@ -33,8 +34,7 @@ javac -source 8 -target 8 -bootclasspath "$AJ" -classpath "$AJ" -d "$W/cls" \
 "$BT/d8" --release --min-api 30 --output "$W/dex" $(find "$W/cls" -name '*.class')
 
 say "converting it to smali"
-( cd "$W/dex" && printf 'PK\5\6%.18s' '' > empty.zip && cp empty.zip carrier.apk \
-  && zip -q carrier.apk classes.dex && apktool d -f -o smali-out carrier.apk >/dev/null )
+( cd "$W/dex" && zip -q carrier.apk classes.dex && apktool d -f -o smali-out carrier.apk >/dev/null )
 
 say "decompiling SystemUI"
 apktool if "$FW" >/dev/null
@@ -47,6 +47,12 @@ cp "$W"/dex/smali-out/smali/com/android/systemui/inkpalm/*.smali \
 # The layout gains one sibling view and no new resource id, so the resource table is untouched.
 cp "$HERE/quick_settings_brightness_dialog.xml" \
    "$W/src/res/layout/quick_settings_brightness_dialog.xml"
+# Lock-screen clock + date: the container that holds them gets visibility="gone". The code
+# looks that container up in onFinishInflate but never keeps or touches it (it stores only
+# its children), so nothing turns it back on. With doze off this is the standby screen.
+if [ "${KEEP_CLOCK:-0}" != 1 ]; then
+  cp "$HERE/keyguard_status_view.xml" "$W/src/res/layout/keyguard_status_view.xml"
+fi
 
 say "rebuilding and signing with the platform key"
 apktool b -f "$W/src" -o "$W/unsigned.apk" >/dev/null
