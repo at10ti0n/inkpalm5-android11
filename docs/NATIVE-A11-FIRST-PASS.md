@@ -41,7 +41,11 @@ The shipped startup script no longer writes either rotation setting or polls the
 
 Remove the old `Vendor_0001_Product_0001.kl` from the active lookup paths after backing
 it up: ID-based files take precedence over device-name files. On this device that
-shared file also matched `sunxi-gpadc0`; it now falls back to Generic.kl.
+shared file also matched `sunxi-gpadc0`. The first-pass change mistakenly left that
+device on Generic.kl. Physical button capture on 2026-09-18 confirmed that **both
+side buttons actually report through sunxi-gpadc0**, so that fallback caused volume
+changes. Install `sunxi-gpadc0.kl` too: 115 = DPAD_LEFT, 114 = SPACE. Keeping the
+sunxi-keyboard layout covers that separate input device without changing power keys.
 Reboot and verify each device's `KeyLayoutFile` in `dumpsys input`.
 No kernel ID changes are necessary.
 
@@ -81,13 +85,13 @@ Host build:
 ```sh
 bash overlays/aod/build.sh
 adb push overlays/aod/build/inkpalm-aod.apk /data/local/tmp/
-adb push configs/sunxi-keyboard.kl configs/pmu1736-powerkey.kl /data/local/tmp/
+adb push configs/sunxi-gpadc0.kl configs/sunxi-keyboard.kl configs/pmu1736-powerkey.kl /data/local/tmp/
 adb push configs/a11-boot-fixups.sh configs/configure-native.sh /data/local/tmp/
 ```
 
 In the rooted device shell, install the overlay on /vendor, set owner root:root,
 mode 0644 and context u:object_r:vendor_file:s0, then remount /vendor read-only.
-Copy the two named layouts into /data/system/devices/keylayout with owner
+Copy the three named layouts into /data/system/devices/keylayout with owner
 system:system and mode 0644, and move the old shared ID layout into the backup folder.
 Copy the new startup script to /data/local/a11-boot-fixups.sh, mode 0755.
 Stop any existing manually launched old polling script as well as the init service;

@@ -68,7 +68,7 @@ why each piece is needed.
 | `libhwcflip.so` | `/vendor/lib/` — cancels the vendor composer's frame mirroring |
 | `lights.virgo.so` | `/vendor/lib/hw/` — drives the real LM3630A front light |
 | `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
-| `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, warmth |
+| `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, warmth, portrait/landscape (v4) |
 | `SystemUI-warmth.apk` | patched SystemUI adding the Screen Temperature slider (GSI-specific) |
 
 Design notes for all of these are in `docs/`; start with

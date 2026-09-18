@@ -102,7 +102,7 @@ touch in the wrong place. That is expected** — step 7 fixes it. Wait for
 bash install/from-android.sh ~/inkpalm-assets
 ```
 
-Installs the key layouts and touch config, adds the three Quick Settings tiles, applies the
+Installs the key layouts and touch config, adds the four Quick Settings tiles, applies the
 native configuration (locked portrait, AOD sleep screen, 2-minute timeout, Bluetooth and
 scanning off), and reboots.
 
@@ -117,7 +117,8 @@ Nothing here is required, it is just what makes it a good reader:
 * **[Unlauncher](https://github.com/jkuester/unlauncher)** — a text-list launcher. Set it as
   default in Settings → Apps → Default apps → Home app.
 * **[EinkBro](https://github.com/plateaukao/einkbro)** — a browser built for E Ink.
-* **Kindle** — works; volume keys turn pages.
+* **Kindle** — physical side buttons turn pages through the sunxi-gpadc0 layout.
+* **Orientation** — the Portrait/Landscape Quick Settings tile switches fixed orientation directly. Use einktile v4 or newer; the standard auto-rotate tile is not equivalent on this port.
 
 ---
 

@@ -4,7 +4,13 @@
 # See docs/NATIVE-A11-FIRST-PASS.md for the tested rotation/AOD configuration.
 L=/data/local/a11-fixups.log; echo "$(date) start" >> $L
 n=0; while [ "$(getprop init.svc.surfaceflinger)" != running ] && [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done
-# Rotation and native sleep are persistent settings configured once; see configure-native.sh.
+# Rotation and native sleep are persistent settings configured once (configure-native.sh),
+# but re-assert the rotation here: an app that asks for the display's NATURAL orientation
+# (android:screenOrientation="nosensor" with resizeableActivity=false -- KOReader does this)
+# gets landscape on this panel, and SystemUI writes that back into user_rotation, where it
+# persists across reboots. MEASURED 2026-09-18: running KOReader left user_rotation=0.
+# One bounded write, no polling; fixed-to-user-rotation still does the real work.
+settings put system user_rotation 1
 settings put global window_animation_scale 0
 settings put global transition_animation_scale 0
 settings put global animator_duration_scale 0

@@ -1,0 +1,3 @@
+# EPD105 physical side buttons, confirmed by getevent on sunxi-gpadc0.
+key 115   DPAD_LEFT         # Upper button: previous Kindle page
+key 114   SPACE             # Lower button: next Kindle page

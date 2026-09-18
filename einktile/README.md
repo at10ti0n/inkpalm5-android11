@@ -1,6 +1,6 @@
 # einktile -- Quick Settings tiles for the InkPalm's E-Ink modes (Android 11), 2026-09-17
 
-Two tiles, placed first in Quick Settings (settings secure sysui_qs_tiles):
+Four tiles available in Quick Settings (settings secure sysui_qs_tiles):
   Mode: Text / Graphics   toggles persist.sys.mRefreshMode between 2 (DU, fast, 1-bit)
                           and 132 (0x84, 16-grey quality) and sets persist.sys.canRefresh=1
                           -- the same two values and the same one-shot refresh stock Android
@@ -8,6 +8,17 @@ Two tiles, placed first in Quick Settings (settings secure sysui_qs_tiles):
                           stock SystemUI vdex: a11/gate15/ghidra/eink-SystemUI-0.log).
   Refresh Screen          persist.sys.canRefresh=1 (stock's tile broadcast
                           android.eink.force.refresh has no receiver under AOSP).
+  Warmth                  adjusts the warm LED bank (also available in the SystemUI slider).
+  Portrait / Landscape    switches user_rotation between 1 and 0, with separate orientation
+                          icons. Requires the fixed-to-user configuration from
+                          configs/configure-native.sh; keeps accelerometer_rotation=1
+                          to avoid the SystemUI startup-reset issue. No root command,
+                          service polling, or sensor auto-rotation is used by the tile.
+
+v4 adds RotationTile. Updating from v2/v3 uses adb install -r; retain the public AOSP
+platform signing key. Add the tile through Quick Settings Edit or the install script.
+Use the freshly built v4 einktile.apk when preparing the installer assets directory.
+
 v2: the app is PLATFORM-SIGNED with the public AOSP test key (keys/, which is the GSI's own
 platform certificate) and declares sharedUserId=android.uid.system, so it writes the properties
 directly via android.os.SystemProperties as the system UID -- no root, no PHH Superuser grant.
@@ -20,5 +31,5 @@ Old v1 text: property writes went through PHH su (root shell); reads via getprop
 both properties per frame (a11/gate15/REFRESH-CONTROL.md), effect is immediate.
 
 Build: MODE_TEXT=2 MODE_GRAPHICS=132 bash build.sh  (build-tools 34.0.0, platform 27,
-JDK 11; keystore.jks generated on first build, pass einktile).  Output build/einktile.apk.
+JDK 11; signs using the public AOSP platform key in ../keys).  Output build/einktile.apk.
 Installed 13:41; both services bound (dumpsys activity services).

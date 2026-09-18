@@ -144,3 +144,34 @@ Stopping at boot-completed rather than never starting them leaves them running f
 
 The actual mAh saved is still **unmeasured** -- like everything else in §3.8, it needs the
 unplugged interval.
+
+## 3.12 KOReader: works only on v2021.05, and it rewrites the rotation setting
+Two device-specific findings from installing KOReader (2026-09-18).
+
+**Only releases up to v2021.05 work.** From v2021.06 KOReader targets SDK 30 and caps its
+legacy storage permissions at `maxSdkVersion='29'`, relying solely on
+`MANAGE_EXTERNAL_STORAGE`. That permission is only honoured by Android 11's **FUSE** storage
+stack; this device's 8.1 vendor kernel provides **sdcardfs** instead, so granting it changes
+nothing and KOReader exits:
+```
+datastorage.lua:46: Permission denied /storage/emulated/0/koreader
+Zygote: Process exited cleanly (1)      <- deliberate exit, so no tombstone, empty crash.log
+```
+v2021.05 (targetSdk 28, uncapped `WRITE_EXTERNAL_STORAGE`) gets the writable sdcardfs view
+and works. The grant must precede the process fork -- the storage mount view is chosen at
+fork time, so `pm grant` then **force-stop** then launch:
+```
+/proc/<pid>/mounts before:  /storage/emulated ... gid=1015 mask=6   (default view, traverse only)
+/proc/<pid>/mounts after:   /storage/emulated ... gid=9997 mask=7   (write view)
+```
+
+**It rewrites `user_rotation`.** KOReader declares `screenOrientation="nosensor"` with
+`resizeableActivity=false`, i.e. the display's *natural* orientation -- landscape here.
+SystemUI writes that back into `user_rotation`, and it survives reboots (MEASURED: after
+running KOReader, `user_rotation=0` on the next boot). `a11-boot-fixups.sh` now re-asserts
+`user_rotation 1` at boot: one bounded write, no polling. Same root cause as quirks 5-7.
+KOReader also stays letterboxed (it renders a landscape-shaped surface);
+`force_resizable_activities=1` widens it to full width but does not fix the height.
+
+**Page keys.** Measured across all three readers, no single forward key works everywhere --
+see quirk 11. `.kl` now sends `DPAD_RIGHT` on Vol Down so Kindle and KOReader both page.
