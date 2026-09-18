@@ -175,3 +175,33 @@ KOReader also stays letterboxed (it renders a landscape-shaped surface);
 
 **Page keys.** Measured across all three readers, no single forward key works everywhere --
 see quirk 11. `.kl` now sends `DPAD_RIGHT` on Vol Down so Kindle and KOReader both page.
+
+## 3.13 The kernel already has FUSE -- no kernel work is needed (CORRECTION)
+Investigating whether an updated kernel was needed for Android 11 storage, `/proc/config.gz`
+on the running device settles it:
+```
+CONFIG_FUSE_FS=y          /dev/fuse present; fuse, fuseblk, fusectl in /proc/filesystems
+CONFIG_CGROUP_CPUACCT=y
+CONFIG_SDCARD_FS=y
+persist.sys.fuse          <unset>   <- why userspace runs sdcardfs
+```
+**This corrects two earlier claims in this project.** The stock 4.9.56 kernel is *not*
+missing FUSE -- it has both FUSE and sdcardfs compiled in, and the device runs sdcardfs
+purely because `persist.sys.fuse` is unset. And Zygote's boot message
+`createProcessGroup failed, kernel missing CONFIG_CGROUP_CPUACCT?` is a wrong guess by
+Zygote: that option is `=y`. The real cause there is the read-only cgroup mount
+(`Failed to make and chown /uid_<n>: Read-only file system`).
+
+So the KOReader storage problem (3.12) is a *userspace configuration* question, not a
+kernel capability one, and building a new kernel -- with all the risk to the vendor HWC's
+`/dev/disp` ioctl ABI, the LM3630A and GT1158 drivers -- buys nothing for it.
+
+**Switching to FUSE was tried and reverted; the result is INCONCLUSIVE.** With
+`persist.sys.fuse=true` the device booted, SystemUI and rotation were fine, but at 48 s
+uptime there were no `emulated` mounts at all. That reading is not trustworthy: the same
+check at the same uptime on the *reverted* boot also showed nothing, and storage was in
+fact fine once vold finished creating the
+`/sdcard -> /storage/self/primary -> /mnt/user/0/primary` chain later in boot. Both
+properties are now `false` and sdcardfs is confirmed healthy. Anyone retrying this must
+wait for a fully settled boot before judging, and should expect vold to need the matching
+Android 11 userspace (MediaProvider's FUSE daemon) for the switch to mean anything.
