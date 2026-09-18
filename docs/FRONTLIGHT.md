@@ -137,6 +137,11 @@ slider 19  -> leda_brightness 109, ledb_brightness 104
 slider 24  -> leda_brightness   0, ledb_brightness  69   (warm bank only)
 ```
 
+### Dark theme
+The row uses `?android:attr/textColorPrimary` rather than a fixed colour, so it follows the
+system light/dark theme like the rest of the panel (verified: labels render white on black
+with `cmd uimode night yes`). Android 11's dark theme works OS-wide on this port.
+
 ### Why this is not a prebuilt
 A patched SystemUI only matches the exact GSI build it was decompiled from, so shipping a
 binary would silently pin everyone to one GSI image. `patch-systemui.sh` takes **your own**

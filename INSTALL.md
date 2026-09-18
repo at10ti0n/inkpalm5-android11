@@ -131,6 +131,7 @@ Nothing here is required, it is just what makes it a good reader:
 | **Clear ghosting** | the **Refresh** tile does one full flash. |
 | **Page turns** | volume keys (Vol Down = Space, Vol Up = D-pad left) — works in Kindle and browsers. |
 | **The Moaan logo** | Home, and wakes the device. |
+| **Dark theme** | Android 11's own, works OS-wide: the **Dark theme** tile, or Settings → Display. Off by default — on a reflective E Ink panel, dark-on-light is usually the more readable way round. |
 
 ## If something goes wrong
 
