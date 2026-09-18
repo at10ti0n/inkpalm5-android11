@@ -268,3 +268,16 @@ Set BOTH `persist.sys.fuse` and `persist.sys.fflag.override.settings_fuse` to `f
 reboot -- the fflag override forces `persist.sys.fuse` back to `true` on its own, so setting
 only the one silently comes back up on FUSE. The boot image's mount points are harmless
 when unused, so no reflash is needed to go back to sdcardfs.
+
+## 3.15 Suspend failures diagnosed: AOD redraws induce spurious touch wakes (RESOLVED)
+The 12 failed suspends in the unplugged run were collateral from a thrash loop: the
+touchscreen (`event0`) woke the device **34 times** in five minutes while untouched. Idle on
+USB the touch is silent (0 IRQs/60 s), so it is not chatter -- it fires only across real
+suspend/resume. An identical run with AOD off gave **4 attempts, 4 successes, 0 failures,
+0 touch wakes**. Verdict: the E Ink refresh driven by the AOD redraw on resume induces the
+touch event (rail noise into the capacitive controller); the event wakes the system mid-freeze
+(`pm_wakeup_pending` -> -EBUSY, exactly `last_failed_errno -16 / step freeze`). AOD is now
+off by default in `configure-native.sh`. Keeping AOD needs a kernel-side change (mask the
+touch IRQ while the panel is powered, or extend `sy7673a_wakelock` past power-down) -- the
+first concrete, measured justification for kernel driver work found in this project. Full
+evidence, both runs, and a reproducible parser: `docs/SUSPEND-DIAGNOSIS.md`.

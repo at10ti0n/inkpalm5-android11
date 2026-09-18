@@ -190,6 +190,14 @@ is still caught.
 
 ## Known issues
 
+* **Always-on display is off by default, on purpose.** With the AOD clock on, every redraw
+  induces spurious touch events from the Goodix controller (the panel's ±15 V refresh rails
+  couple into the capacitive sensor), and each one wakes the device: measured **34 touch
+  wakes and 12 failed suspends in five minutes** against **zero of either with AOD off**.
+  The proper fix is kernel-side (mask the touch IRQ during panel refresh) and is not
+  available on the stock binary kernel. `settings put secure doze_always_on 1` turns the
+  clock back on if you want it; see [docs/SUSPEND-DIAGNOSIS.md](docs/SUSPEND-DIAGNOSIS.md).
+
 * **The Screen Temperature slider is tied to GSI v313.** It lives inside SystemUI, and a
   patched SystemUI only matches the exact GSI build it was built from, so step 7 installs it
   **only** if the SystemUI on your device is byte-for-byte that build — any other GSI is left

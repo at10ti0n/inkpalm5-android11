@@ -10,7 +10,11 @@ settings put system accelerometer_rotation 1
 settings put system user_rotation 1
 settings put system screen_off_timeout 120000
 settings put secure doze_enabled 1
-settings put secure doze_always_on 1
+# AOD is OFF by default as of 2026-09-19. MEASURED (docs/SUSPEND-DIAGNOSIS.md): with AOD on,
+# every E Ink redraw on resume induces spurious touch events (34 touch-wakes in 5 min,
+# 12 failed suspends, suspend never holds); with AOD off the same run gave 4 clean suspends
+# and zero touch wakes. Set to 1 if you want the sleep-screen clock and accept the drain.
+settings put secure doze_always_on 0
 # Native timeout respects activity and apps holding keep-screen-on.
 
 # Android 11 FUSE storage. The mount points Android 11's init.rc creates are added by the
