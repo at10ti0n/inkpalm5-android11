@@ -47,7 +47,18 @@ bash systemui/patch-systemui.sh SystemUI.apk framework-res.apk SystemUI-warmth.a
 The same patch also hides the lock-screen clock and date, so the sleep screen is only the
 standby image; `KEEP_CLOCK=1 bash systemui/patch-systemui.sh ...` leaves the clock in.
 It needs `apktool` 3.x on top of the tools above, and prints the install and rollback
-commands when it finishes. Re-run it after any GSI update — a GSI flash puts the stock
+commands when it finishes.
+
+The framework patch that makes a power press show the lock screen before the display goes
+off is built the same way, from your own `services.jar`:
+
+```
+adb pull /system/framework/services.jar
+bash framework/patch-services.sh services.jar services-powerpress.jar
+```
+It adds one tiny smali class and edits one case in `PhoneWindowManager.powerPress`
+(`framework/patch-powerpress.py` shows exactly what). The installer removes the
+precompiled `services.odex` so the patched dex is the one that runs. Re-run it after any GSI update — a GSI flash puts the stock
 SystemUI back.
 
 Collect the outputs into one folder and it is a drop-in replacement for the release
@@ -72,6 +83,7 @@ why each piece is needed.
 | `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
 | `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, warmth, portrait/landscape (v4) |
 | `SystemUI-warmth.apk` | patched SystemUI: Screen Temperature slider, lock-screen clock hidden (GSI-specific) |
+| `services-powerpress.jar` | patched framework: power press shows the lock screen, then sleeps 800 ms later (GSI-specific) |
 
 Design notes for all of these are in `docs/`; start with
 [REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).

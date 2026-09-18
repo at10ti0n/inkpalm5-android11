@@ -108,6 +108,7 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
     install/    from-twrp.sh + from-android.sh (the install guide runs these)
     frontlight/ replacement lights HAL: brightness slider + warmth
     systemui/   SystemUI patch: warmth slider in Quick Settings, lock-screen clock hidden
+    framework/  services.jar patch: power press draws the lock screen before the display goes off
     docs/       REFRESH-CONTROL.md, FRONTLIGHT.md, INCIDENT-SF-LIVELOCK.md, images/
 
 ## Credits

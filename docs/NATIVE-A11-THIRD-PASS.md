@@ -296,3 +296,19 @@ both wallpapers plain white on every resume (`updateWallpaperBitmapLocked` 22 ms
 `wm_on_resume_called`) unless its `KEEP_DEVICE_WALLPAPER` preference (proto field 2 in
 `core_preferences.proto`) is set; `install/from-android.sh` appends that field. The default
 image is `docs/images/standby.png` (720x1280, letterpress type).
+
+## 3.17 CORRECTION to 3.16: the keyguard never reached the panel; power press now locks first
+3.16 claimed the panel holds the lock screen through sleep. The owner looked: it held the
+Kindle page. The counters had been read wrong -- Android shows the keyguard and switches the
+display off *concurrently* on a power press (`powerPress` -> `goToSleep`; the keyguard is
+shown from `onStartedGoingToSleep` while `DisplayPowerController` is already turning the
+display off, and screen-off does not wait for windows to be drawn the way screen-on does).
+On E Ink the last composited frame is what stays, so the keyguard lost that race every time.
+
+Fix, framework side (`framework/patch-services.sh`): the GO_TO_SLEEP case of
+`PhoneWindowManager.powerPress` now calls `lockNow()` and posts a Runnable that goes to
+sleep 800 ms later; if the keyguard is already showing it sleeps at once, as before.
+Measured: keyguard visible 400 ms after the press, sleep at 850 ms, 3 panel cycles in the
+window. Precompiled `services.odex/vdex/art` are removed (backed up) so the patched dex runs.
+The 2-minute idle timeout still sleeps directly -- it goes through `PowerManagerService`,
+not `powerPress` -- so an idle timeout still leaves the app frame on the panel; open.

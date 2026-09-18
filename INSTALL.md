@@ -198,11 +198,12 @@ is still caught.
   available on the stock binary kernel. `settings put secure doze_always_on 1` turns the
   clock back on if you want it; see [docs/SUSPEND-DIAGNOSIS.md](docs/SUSPEND-DIAGNOSIS.md).
   Instead the device sleeps on a **static standby image** (the lock-screen wallpaper, like
-  stock; the patched SystemUI from step 7 hides the clock): the panel holds it with zero
-  redraws. To change it, put
+  stock; the patched SystemUI from step 7 hides the clock, and the patched framework from
+  the same step shows the lock screen *before* the display goes off -- without that, the
+  E Ink panel keeps whatever app was open): the panel holds it with zero redraws. To change it, put
   any 720x1280 image at `docs/images/standby.png` and re-run `install/from-android.sh`.
 
-* **The Screen Temperature slider (and the clock-free sleep screen) are tied to GSI v313.** They live inside SystemUI, and a
+* **The Screen Temperature slider and the standby screen are tied to GSI v313.** They live inside SystemUI and the framework (`services.jar`), and a
   patched SystemUI only matches the exact GSI build it was built from, so step 7 installs it
   **only** if the SystemUI on your device is byte-for-byte that build — any other GSI is left
   untouched and the step says so. Everything else, brightness included, works on any GSI;

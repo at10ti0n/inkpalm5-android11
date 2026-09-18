@@ -110,7 +110,39 @@ if [ -f "$A/SystemUI-warmth.apk" ]; then
   fi
 fi
 
-say "rebooting to apply rotation and input configuration"
+# Power press -> lock screen first, then sleep (E Ink keeps the last frame through sleep).
+# Same rule as SystemUI: only onto the exact GSI build it was patched from.
+STOCK_SERVICES_SHA=ac34b0f57e09fc32ff1e024736f7114e30464c973406e0a3204cd1d5848518d4
+if [ -f "$A/services-powerpress.jar" ]; then
+  say "standby image on power press (framework patch)"
+  CUR=$(adb shell "su -c 'sha256sum /system/framework/services.jar'" 2>/dev/null | tr -d '\r' | grep -oE '^[0-9a-f]{64}' | head -1)
+  OURS=$(shasum -a256 "$A/services-powerpress.jar" | cut -d' ' -f1)
+  if [ "$CUR" = "$OURS" ]; then
+    echo "  already installed"
+  elif [ "$CUR" != "$STOCK_SERVICES_SHA" ]; then
+    echo "  SKIPPED -- your services.jar is not the GSI build this was built against."
+    echo "    on device: ${CUR:-<unreadable>}"
+    echo "    expected:  $STOCK_SERVICES_SHA"
+    echo "    The device will sleep showing the last app instead of the standby image; build"
+    echo "    one against your own services.jar with framework/patch-services.sh (BUILDING.md)."
+  else
+    adb push "$A/services-powerpress.jar" /data/local/tmp/services-patched.jar >/dev/null
+    adb shell "su -c '
+      set -e
+      F=/system/framework
+      mount -o rw,remount /system
+      [ -f /data/local/services.jar.stock ] || cp -p \$F/services.jar /data/local/services.jar.stock
+      [ -d /data/local/services-oat.stock ] || { mkdir -p /data/local/services-oat.stock; cp -p \$F/oat/arm/services.* /data/local/services-oat.stock/; }
+      rm -f \$F/oat/arm/services.odex \$F/oat/arm/services.vdex \$F/oat/arm/services.art
+      cp /data/local/tmp/services-patched.jar \$F/services.jar
+      chmod 644 \$F/services.jar; chown 0:0 \$F/services.jar; chcon u:object_r:system_file:s0 \$F/services.jar
+      sync
+      echo \"  installed (stock jar + odex backed up under /data/local)\"
+    '" | tr -d '\r'
+  fi
+fi
+
+say "rebooting"
 adb shell "su -c 'sync; reboot'" 2>/dev/null || true
 echo "When it comes back it should be PORTRAIT, touch aligned, with Brightness and Screen"
 echo "Temperature sliders in Quick Settings and the Mode / Refresh tiles working."
