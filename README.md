@@ -26,7 +26,7 @@ calibration (`/private`, never touch it), not the GSI (download it from phhusson
 |---|---|---|
 | ![home](docs/images/home.png) | ![qs](docs/images/quicksettings.png) | ![about](docs/images/about-android11.png) |
 
-| EinkBro | Kindle about (8.156 on API 30) | Kindle reader (title blurred; page content is DRM-protected) |
+| EinkBro | Kindle about (8.156 on API 30) | Kindle, reading a sample |
 |---|---|---|
 | ![einkbro](docs/images/einkbro.png) | ![kindle-about](docs/images/kindle-about.png) | ![kindle](docs/images/kindle-reader.png) |
 
@@ -94,7 +94,7 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
 | 13 | Capacitive Moaan logo as a gesture area | The touch controller reports it as one key (`KEY_HOMEPAGE`), no coordinates | HOME + WAKE via `.kl` | Controller firmware/driver change |
 | 14 | Framework `exec` in the 8.1 init | Temporary `exec` children never ran (Gate 1F a6) | Declared oneshot/long-running services only | -- |
 | 15 | Telephony | Vendor declares GSM/IMS it has no hardware for | PHH no-RIL; phone process idle | Vendor manifest without telephony |
-| 16 | Screenshots of DRM readers | Kindle's reader surface is secure: screencap shows white | -- | -- |
+| 16 | ~~Screenshots of DRM readers~~ | **Corrected 2026-09-18:** Kindle's reader is *not* a secure surface here -- `screencap` captures the page normally (the reader screenshot above is a straight `screencap`). The earlier "shows white" note was wrong | -- | -- |
 
 ## Layout
     twrp/       mktwrp.py + twrp-epd105-ramdisk.cpio.gz + libepdfix.c + overlay patch

@@ -2,8 +2,8 @@
 
 Reported by the operator: "device seems hot to touch even after being unplugged", then
 "it seems stuck, can't open it back with power button".  Captured live over ADB before any
-reboot (`a11/gate17/build/hang/20260918-001051/`, project side).  Root cause identified;
-no fix yet.  This is the first hang in ~2 months of daily use of this port.
+reboot (`a11/gate17/build/hang/20260918-001051/`, project side).  Failure mode identified; the underlying code defect is not yet isolated, and there is
+no verified fix.  This is the first hang in ~2 months of daily use of this port.
 
 ## What was actually wrong: a SurfaceFlinger livelock
 
@@ -80,9 +80,55 @@ to fix.  Governor restored to `performance`; sampler scratch files removed from 
    `a11/gate17/build/hang/capture.sh` (waits for the device, dumps thermal/suspend/wakeup/
    top/thread-states/backtrace, reboots nothing), then reboot.
 2. **Cheap discriminator for the AOD hypothesis:** run unplugged with
-   `settings put secure doze_always_on 0` for a few days.  If the hang does not recur,
-   AOD/doze is implicated and the overlay work needs revisiting.
+   `settings put secure doze_always_on 0` for a few days.  A difference in repeatable failure rates could implicate AOD/doze; absence of
+   another rare hang by itself would not establish causation.
 3. Only if it recurs and 2 does not implicate AOD: A/B the composer shim.
 4. Unrelated but found in the same logs: the RIL retries forever,
    `RIL: fd = -1, sleep 2s wait device, total wait time: 3050s` -- a 0.5 Hz wakeup for a
    radio this device does not have.  Disabling it belongs with the §3.5 telephony work.
+
+
+## Follow-up investigation, 2026-09-18
+
+The installed SurfaceFlinger library matches the incident copy (SHA-256
+`4bf68ec57473f69f22f6a307566efa354edccff12a57940474381996c874bf71`).
+ELF relocation analysis maps the sampled PC `0x1505e8` to the PLT call stub for
+`android::RefBase::decStrong`, at GOT slot `0x163930`. Multiple places in the app
+EventThread call that stub. The single broken backtrace does not identify the
+failing loop or justify patching a particular instruction. Ghidra and Thumb
+instruction review have not yet isolated a code defect.
+
+A connected stress run passed 23 wake/sleep cycles, then another LLM's installer
+work rebooted the device. The operator confirmed that concurrent work; this was
+an interrupted test, not a reproduced hang. The subsequent connected observation
+lasted roughly eight hours without a recurrence, but had zero kernel suspends.
+
+An unplugged test then completed **12 sleep/wake cycles and 23 successful kernel
+suspends** in 17 min 34 sec. SurfaceFlinger retained its PID and responded after
+every cycle. There were seven additional freeze-stage EBUSY aborts, no failed
+resumes, and battery temperature remained 29 C. This does not prove a fix: the
+original livelock did not recur, and no compositor patch has been applied.
+
+### Capture on recurrence
+
+`diagnostics/sf-hang/capture-device.sh OUTPUT_DIRECTORY` collects real mappings,
+thread state, five seconds of CPU sampling, and a full debuggerd tombstone with
+registers and stack data. The old backtrace-only sample lacked these details.
+The capture was validated on a healthy device. It does not reboot or restart
+services and avoids the old capture script's forced I2C reads.
+
+`diagnostics/sf-hang/watch-device.sh` is temporary diagnostic instrumentation.
+Stage the capture as `/data/local/tmp/sf-capture-device.sh` and run the watcher as
+root, detached with nohup if monitoring while unplugged. It samples the app
+EventThread every 15 seconds and captures after three consecutive intervals at
+80% or more of one core. It uses no wake alarm or Android wakelock, expires after
+72 hours, and ends at reboot. It is not installed as a boot service. Two collectors
+are serialized with a directory lock; a killed collector can leave that lock and
+must be inspected before removing it. A capture exit status other than zero means
+collection did not finish successfully.
+
+Raw output stays on the device under `/data/local/tmp/sf-hang-watch-v2` and should
+be kept private: logs and tombstones can contain application data. If the screen
+freezes again, connect USB and collect the output before rebooting. This watcher
+preserves evidence; it does not repair or recover from the hang. No battery-life
+claim is made for the instrumentation overhead.
