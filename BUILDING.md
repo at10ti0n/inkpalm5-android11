@@ -36,7 +36,19 @@ MODE_TEXT=2 MODE_GRAPHICS=132 bash einktile/build.sh     # -> einktile/build/ein
 bash overlays/aod/build.sh                               # -> overlays/aod/build/inkpalm-aod.apk
 ```
 
-Collect the six outputs into one folder and it is a drop-in replacement for the release
+The Quick Settings warmth slider is built separately, because it patches SystemUI and a
+patched SystemUI only matches the GSI build it came from:
+
+```
+adb pull /system/system_ext/priv-app/SystemUI/SystemUI.apk      # after the GSI is installed
+adb pull /system/framework/framework-res.apk
+bash systemui/patch-systemui.sh SystemUI.apk framework-res.apk SystemUI-warmth.apk
+```
+It needs `apktool` 3.x on top of the tools above, and prints the install and rollback
+commands when it finishes. Re-run it after any GSI update — a GSI flash puts the stock
+SystemUI back.
+
+Collect the outputs into one folder and it is a drop-in replacement for the release
 assets — hand that folder to `install/from-twrp.sh` and `install/from-android.sh` and
 follow [INSTALL.md](INSTALL.md) from step 1.
 
@@ -56,7 +68,8 @@ why each piece is needed.
 | `libhwcflip.so` | `/vendor/lib/` — cancels the vendor composer's frame mirroring |
 | `lights.virgo.so` | `/vendor/lib/hw/` — drives the real LM3630A front light |
 | `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
-| `einktile.apk` | Quick Settings: Text/Graphics, full refresh, warmth |
+| `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, warmth |
+| `SystemUI-warmth.apk` | patched SystemUI adding the Screen Temperature slider (GSI-specific) |
 
 Design notes for all of these are in `docs/`; start with
 [REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).

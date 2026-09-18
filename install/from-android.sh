@@ -51,7 +51,41 @@ adb shell "su -c 'sh /sdcard/configure-native.sh && rm -f /sdcard/configure-nati
 adb shell "su -c 'sh /data/local/a11-boot-fixups.sh; echo \"  startup settings applied\"'" | tr -d '\r'
 adb shell "su -c 'setprop persist.sys.frontlight.warm 10'"
 
+# The warmth slider lives inside SystemUI, and a patched SystemUI only matches the exact
+# GSI build it was decompiled from -- so this replaces SystemUI ONLY when the one on the
+# device is byte-for-byte the build this APK was made from. Any other GSI is left alone.
+STOCK_SYSUI_SHA=6fb1830ec147e77699393d95de92d04ef99deac02e32e19576f19e93a1389d16
+if [ -f "$A/SystemUI-warmth.apk" ]; then
+  say "front-light warmth slider in Quick Settings"
+  CUR=$(adb shell "su -c 'sha256sum /system/system_ext/priv-app/SystemUI/SystemUI.apk'" 2>/dev/null | tr -d '\r' | grep -oE '^[0-9a-f]{64}' | head -1)
+  OURS=$(shasum -a256 "$A/SystemUI-warmth.apk" | cut -d' ' -f1)
+  if [ "$CUR" = "$OURS" ]; then
+    echo "  already installed"
+  elif [ "$CUR" != "$STOCK_SYSUI_SHA" ]; then
+    echo "  SKIPPED -- your SystemUI.apk is not the GSI build this was built against."
+    echo "    on device: ${CUR:-<unreadable>}"
+    echo "    expected:  $STOCK_SYSUI_SHA"
+    echo "    Brightness and the Warmth tile still work; for the slider, build one against"
+    echo "    your own SystemUI with systemui/patch-systemui.sh (see BUILDING.md)."
+  else
+    adb push "$A/SystemUI-warmth.apk" /sdcard/SystemUI-warmth.apk
+    adb shell "su -c '
+      set -e
+      D=/system/system_ext/priv-app/SystemUI
+      mount -o rw,remount /system
+      [ -f /data/local/SystemUI.apk.stock ] || cp -p \$D/SystemUI.apk /data/local/SystemUI.apk.stock
+      [ -d /data/local/SystemUI-oat.stock ] || cp -a \$D/oat /data/local/SystemUI-oat.stock
+      rm -rf \$D/oat
+      cp /sdcard/SystemUI-warmth.apk \$D/SystemUI.apk
+      chmod 644 \$D/SystemUI.apk; chown 0:0 \$D/SystemUI.apk
+      chcon u:object_r:system_file:s0 \$D/SystemUI.apk
+      rm -f /sdcard/SystemUI-warmth.apk; sync
+      echo \"  installed (original saved to /data/local/SystemUI.apk.stock)\"
+    '" | tr -d '\r'
+  fi
+fi
+
 say "rebooting to apply rotation and input configuration"
 adb shell "su -c 'sync; reboot'" 2>/dev/null || true
-echo "When it comes back it should be PORTRAIT, touch aligned, with the brightness slider"
-echo "and the Mode / Refresh / Warmth tiles working."
+echo "When it comes back it should be PORTRAIT, touch aligned, with Brightness and Screen"
+echo "Temperature sliders in Quick Settings and the Mode / Refresh tiles working."

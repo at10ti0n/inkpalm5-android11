@@ -23,7 +23,8 @@ Start to finish, about 45 minutes. Two scripts do the fiddly parts; you run six 
   ```
   (Prefer to build from your own stock images instead of trusting mine? See
   [BUILDING.md](BUILDING.md) — the images are byte-for-byte reproducible.)
-* phhusson's GSI: **`system-roar-arm-aonly-vanilla.img`** (tested: v313) from
+* phhusson's GSI: **`system-roar-arm-aonly-vanilla.img`** (**use v313** — see the note on
+  the Screen Temperature slider under *Known issues*) from
   https://github.com/phhusson/treble_experimentations/releases — **arm**, **a-only**,
   **vanilla**. Not arm64, not a/b, not gapps. Unpack the `.xz` to get the `.img`.
 
@@ -124,8 +125,8 @@ Nothing here is required, it is just what makes it a good reader:
 
 | | |
 |---|---|
-| **Brightness** | the normal Android slider. All the way down = light off. |
-| **Warmth** | the **Warmth** tile in Quick Settings (0–24). |
+| **Brightness** | the **Brightness** slider in Quick Settings. All the way down = light off. |
+| **Warmth** | the **Screen Temperature** slider, right under Brightness: Cool ↔ Warm. |
 | **Text / Graphics** | the **Mode** tile — Text is faster and greyer, Graphics is slower and cleaner. Same two modes stock had. |
 | **Clear ghosting** | the **Refresh** tile does one full flash. |
 | **Page turns** | volume keys (Vol Down = Space, Vol Up = D-pad left) — works in Kindle and browsers. |
@@ -154,6 +155,14 @@ returns a number, and that `/vendor/lib/hw/lights.virgo.so` matches the release 
 [docs/FRONTLIGHT.md](docs/FRONTLIGHT.md).
 
 ## Known issues
+
+* **The Screen Temperature slider is tied to GSI v313.** It lives inside SystemUI, and a
+  patched SystemUI only matches the exact GSI build it was built from, so step 7 installs it
+  **only** if the SystemUI on your device is byte-for-byte that build — any other GSI is left
+  untouched and the step says so. Everything else, brightness included, works on any GSI;
+  you also still get the **Warmth** tile. To get the slider on a different GSI, build one
+  against your own SystemUI with `systemui/patch-systemui.sh` ([BUILDING.md](BUILDING.md)).
+  Reflashing or updating the GSI later reverts it — re-run the patch.
 
 * **One unexplained freeze.** On 2026-09-17, after ~2.5 h uptime, SurfaceFlinger livelocked:
   the screen froze on its last image, the power button appeared dead, and the device got
