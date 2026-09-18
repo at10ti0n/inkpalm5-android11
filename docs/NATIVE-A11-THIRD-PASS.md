@@ -219,3 +219,52 @@ fact fine once vold finished creating the
 properties are now `false` and sdcardfs is confirmed healthy. Anyone retrying this must
 wait for a fully settled boot before judging, and should expect vold to need the matching
 Android 11 userspace (MediaProvider's FUSE daemon) for the switch to mean anything.
+
+## 3.14 FUSE storage WORKS -- the blocker was three missing mount points, not the kernel
+Resolved 2026-09-18, and it supersedes the negative result in 3.13.
+
+The kernel was never the problem (3.13: `CONFIG_FUSE_FS=y`). Neither was the daemon --
+`MediaProvider.apk` ships `lib/armeabi-v7a/libfuse_jni.so` and `libfuse.so`, and vold has
+full FUSE support. FUSE failed because **this port boots the stock Android 8.1 init, which
+does not create the mount points Android 11's own `init.rc` creates.** vold said so exactly:
+
+```
+E vold: Failed to prepare directory /mnt/pass_through/0: No such file or directory
+E vold: Failed to bind mount /mnt/runtime/write/emulated/0/Android/obb
+        to /mnt/installer/0/emulated/0/Android/obb: No such file or directory
+```
+
+### The fix
+`a11boot/a11-prepend.rc`, in **`on post-fs-data`** (NOT `on init`: `/mnt` is a tmpfs the
+stock init mounts during its own `on init`, and because our actions are prepended they run
+first and get wiped):
+```
+mkdir /mnt/user 0755 root root
+mkdir /mnt/pass_through 0700 root root
+mkdir /mnt/installer 0711 root root
+mkdir /mnt/androidwritable 0711 root root
+mount none /mnt/user /mnt/installer bind rec
+mount none /mnt/user /mnt/androidwritable bind rec
+```
+plus `persist.sys.fuse=true` (configure-native.sh) and one symlink in
+`a11-boot-fixups.sh`, because vold creates `/mnt/user/0/primary` on the sdcardfs path but
+not on the FUSE one, and `/sdcard -> /storage/self/primary -> /mnt/user/0/primary`:
+```
+ln -s /mnt/user/0/emulated/0 /mnt/user/0/primary
+```
+
+### Verified on a clean boot, nothing manual
+```
+fuse mounts: 3     /dev/fuse on /mnt/user/0/emulated, /mnt/installer/0/emulated,
+                   /mnt/androidwritable/0/emulated  (rw, allow_other)
+/sdcard: 38 entries, writable
+KOReader v2026.07.1 -- the CURRENT release -- runs, creates /sdcard/koreader, no crash log.
+```
+That is the app 3.12 had to pin to v2021.05. **The pin is lifted**; any app relying on
+`MANAGE_EXTERNAL_STORAGE` should now work.
+
+### Turning it off
+Set BOTH `persist.sys.fuse` and `persist.sys.fflag.override.settings_fuse` to `false` and
+reboot -- the fflag override forces `persist.sys.fuse` back to `true` on its own, so setting
+only the one silently comes back up on FUSE. The boot image's mount points are harmless
+when unused, so no reflash is needed to go back to sdcardfs.

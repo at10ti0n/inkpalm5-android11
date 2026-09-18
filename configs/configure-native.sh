@@ -12,3 +12,11 @@ settings put system screen_off_timeout 120000
 settings put secure doze_enabled 1
 settings put secure doze_always_on 1
 # Native timeout respects activity and apps holding keep-screen-on.
+
+# Android 11 FUSE storage. The mount points Android 11's init.rc creates are added by the
+# boot image's prepended rc (a11boot/a11-prepend.rc); this switches the stack on. Without
+# FUSE the device runs sdcardfs and any app relying on MANAGE_EXTERNAL_STORAGE is broken
+# (e.g. KOReader from v2021.06 on). To go back: set both to false and reboot -- BOTH, the
+# fflag override forces persist.sys.fuse back to true on its own.
+setprop persist.sys.fflag.override.settings_fuse true
+setprop persist.sys.fuse true

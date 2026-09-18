@@ -1,3 +1,25 @@
+# Android 11 FUSE storage on the stock 8.1 init.
+#
+# MEASURED 2026-09-18: the kernel has CONFIG_FUSE_FS=y, vold has FUSE support and
+# MediaProvider ships libfuse_jni.so -- FUSE failed only because the Android 8.1 init has
+# never heard of the mount points Android 11's own init.rc creates. vold said exactly that:
+#   E vold: Failed to prepare directory /mnt/pass_through/0: No such file or directory
+#   E vold: Failed to bind mount ... to /mnt/installer/0/emulated/0/Android/obb: No such file
+# Creating them here is enough: vold then mounts /dev/fuse on /mnt/user/0/emulated,
+# /mnt/installer/0/emulated and /mnt/androidwritable/0/emulated, and apps that rely on
+# MANAGE_EXTERNAL_STORAGE work -- verified with KOReader v2026.07.1, which cannot run on
+# sdcardfs at all. Needs persist.sys.fuse=true (configure-native.sh sets it).
+# NOTE: these must NOT go in `on init` -- /mnt is a tmpfs the stock init mounts during its
+# own `on init`, and since our actions are prepended they run FIRST and get wiped by it.
+# `on post-fs-data` is after /mnt is stable and still before vold starts user 0.
+on post-fs-data
+    mkdir /mnt/user 0755 root root
+    mkdir /mnt/pass_through 0700 root root
+    mkdir /mnt/installer 0711 root root
+    mkdir /mnt/androidwritable 0711 root root
+    mount none /mnt/user /mnt/installer bind rec
+    mount none /mnt/user /mnt/androidwritable bind rec
+
 # Android 11 (PHH GSI) on Moaan InkPalm 5 Pro Mini (EPD105) -- prepended to the stock
 # Android 8.1 boot ramdisk /init.rc by mkboot.py, so these register before everything else.
 

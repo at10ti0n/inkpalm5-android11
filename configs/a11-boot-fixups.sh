@@ -23,6 +23,12 @@ svc bluetooth disable; settings put global bluetooth_on 0
 settings put secure location_mode 0
 settings put global wifi_scan_always_enabled 0; settings put global ble_scan_always_enabled 0
 dumpsys deviceidle enable >/dev/null 2>&1
+# FUSE storage: vold creates /mnt/user/0/primary itself on the sdcardfs path but not on the
+# FUSE one here, and /sdcard -> /storage/self/primary -> /mnt/user/0/primary, so without it
+# /sdcard does not resolve at all. See a11boot/a11-prepend.rc for the mount points.
+if [ "$(getprop persist.sys.fuse)" = true ] && [ ! -e /mnt/user/0/primary ]; then
+  ln -s /mnt/user/0/emulated/0 /mnt/user/0/primary
+fi
 # No modem on this device and the framework already knows (ro.radio.noril=true), but the
 # vendor still starts rild and radio_monitor, both declared with `capabilities BLOCK_SUSPEND`
 # (rild is in the wakelock group too). rild then retries a device node that does not exist
