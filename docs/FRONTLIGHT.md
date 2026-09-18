@@ -89,3 +89,52 @@ is not in this repo.
   "contrast" setting.  Not wired up yet; same shape of fix if wanted.
 * Cold levels 1..24 are a linear map of the slider; the stock UI had 24 discrete steps,
   so nothing is lost, but the slider's lowest visible step is level 1 at value 11.
+
+## Warmth as a Quick Settings slider (2026-09-18)
+
+The Warmth tile opened a dialog; warmth now has its own slider line in the Quick Settings
+panel, directly under the brightness line.
+
+![warmth slider](images/qs-warmth-slider.png)
+
+Quick Settings custom tiles cannot render a slider -- a tile is an icon and a label, and an
+RRO can replace resources but cannot add the code to drive a new control. So this is a real
+SystemUI patch, kept as small as it can be:
+
+* `systemui/WarmthSliderView.java` -- a `SeekBar` subclass that wires **itself** up in its
+  constructor: reads `persist.sys.frontlight.warm`, writes it on change, then nudges
+  `Settings.System.SCREEN_BRIGHTNESS` by one step and back so the framework re-issues the
+  backlight call and the lights HAL re-applies with the new warmth. Applies on a 300 ms
+  throttle while dragging (each apply costs a panel refresh) and once on release.
+* `systemui/quick_settings_brightness_dialog.xml` -- the stock brightness layout with the
+  original row untouched inside a vertical wrapper, plus the new view as a second child.
+  **It carries no `android:id`**, so no new resource is added and the resource table is
+  unchanged; the view finds its own state, so `QSPanel` needs no patch at all.
+* `systemui/patch-systemui.sh` -- does the whole build: compiles the class, converts it to
+  smali, decompiles SystemUI, drops both in, rebuilds, signs with the platform key and
+  **refuses to emit an APK whose certificate does not match the original**.
+
+SystemUI runs as `android.uid.systemui` (uid 10138), not uid 1000, so it cannot normally set
+a `system_prop` like `persist.sys.frontlight.warm`. It works here because this port runs
+SELinux **permissive** (a consequence of the permissive-init patch, quirk 3) -- property
+service logs the denial and allows the write. On an enforcing build the slider would need to
+hand the value to the einktile app (uid 1000) by broadcast instead. The Warmth **tile** is
+still shipped and still works, both as that fallback and for anyone who would rather not
+patch SystemUI.
+
+Measured on the device, dragging the slider end to end:
+
+```
+slider  0  -> leda_brightness  90, ledb_brightness   0   (cold bank only)
+slider 10  -> leda_brightness 139, ledb_brightness  88
+slider 19  -> leda_brightness 109, ledb_brightness 104
+slider 24  -> leda_brightness   0, ledb_brightness  69   (warm bank only)
+```
+
+### Why this is not a prebuilt
+A patched SystemUI only matches the exact GSI build it was decompiled from, so shipping a
+binary would silently pin everyone to one GSI image. `patch-systemui.sh` takes **your own**
+`SystemUI.apk` and `framework-res.apk`, the same rule the TWRP and boot builders follow.
+Note that `apktool` also folds redundant `-vNN` resource qualifiers on rebuild (about 890
+directories here, e.g. `res/anim-v21` -> `res/anim`); that is expected -- SystemUI's minSdk
+is 30, so those qualifiers always applied anyway.

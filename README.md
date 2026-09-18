@@ -69,9 +69,12 @@ review with the remaining native proposals in `docs/REVIEW-NATIVE-PASSES.md`, an
 pass (system-UID tiles, telephony, wake sources) in `docs/NATIVE-A11-THIRD-PASS.md`.
 
 ## Front light (brightness + warmth)
-Works natively through the Android brightness slider; warmth is the **Warmth** tile.
-`frontlight/` replaces the vendor lights HAL module, which drove an LCD backlight path
-that goes nowhere on this board -- see [docs/FRONTLIGHT.md](docs/FRONTLIGHT.md).
+Brightness is the normal Android slider; **warmth is a second slider line right under it in
+Quick Settings**. `frontlight/` replaces the vendor lights HAL module, which drove an LCD
+backlight path that goes nowhere on this board, and `systemui/` patches the warmth line into
+the QS panel (a tile cannot draw a slider). See [docs/FRONTLIGHT.md](docs/FRONTLIGHT.md).
+
+![warmth slider](docs/images/qs-warmth-slider.png)
 
 ## Quirks and workarounds (where native Android 11 did not work here, and what was built instead)
 Each entry: the native mechanism that should have done the job, what actually happened on this
@@ -104,6 +107,7 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
     einktile/   Quick Settings tiles (build.sh: Android build-tools + JDK 11)
     install/    from-twrp.sh + from-android.sh (the install guide runs these)
     frontlight/ replacement lights HAL: brightness slider + warmth
+    systemui/   the warmth slider line added to the Quick Settings panel
     docs/       REFRESH-CONTROL.md, FRONTLIGHT.md, INCIDENT-SF-LIVELOCK.md, images/
 
 ## Credits
