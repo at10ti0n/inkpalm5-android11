@@ -26,8 +26,8 @@ into.
 starts" was wrong: the service ran in DOZE with the display OFF, and the missing piece was
 `config_dozeAlwaysOnDisplayAvailable`.  Live: the overlay resolves `true`, `[x]
 net.inkpalm.overlay.aod`, `DOZE_SUSPEND`.  The synthetic sleep page and its polling loop
-were the wrong tool and are rightly retired (the SleepActivity is now dead code in the tile
-APK; it can be removed).
+were the wrong tool and are rightly retired (the SleepActivity was since removed from the
+tile APK outright, in v2).
 
 ## 2. Verdict on the second pass (suspend, USB)
 

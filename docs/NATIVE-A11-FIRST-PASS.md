@@ -64,8 +64,8 @@ third-party overlays. A normal APK sideload is not the installation method.
 
 Native `screen_off_timeout=120000` replaces the polling SleepActivity launcher and
 synthetic Sleep key. It respects Android user activity and keep-screen-on requests.
-The old SleepActivity remains available in the tile APK for compatibility but is no
-longer launched by the startup script. The clock/image differs from v1's sleep page.
+The sleep screen is now the native AOD one (the SystemUI clock); the old SleepActivity
+was removed from the tile APK in v2 and no longer exists anywhere in this repo.
 
 This verifies display behaviour, not battery life. USB-connected suspend statistics
 showed no completed kernel suspend in the test, and telephony sometimes held a partial
@@ -120,7 +120,8 @@ DOZE_AOD. Verify a visible clock, physical power/wake and page keys on the panel
 Disable `net.inkpalm.overlay.aod` using `cmd overlay disable --user 0`, restore the
 backed-up startup script and shared ID layout, and reboot. The shared layout takes
 precedence over the named files. The original script restores its own locked rotation
-and timeout and resumes its custom sleep page. To remove the overlay file entirely,
+and timeout. (It cannot resume the old custom sleep page: that activity was removed
+from the tile APK in v2.) To remove the overlay file entirely,
 delete only /vendor/overlay/inkpalm-aod.apk with /vendor temporarily writable, then
 remount read-only and reboot. No boot or recovery image needs to be flashed.
 

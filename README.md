@@ -30,10 +30,6 @@ calibration (`/private`, never touch it), not the GSI (download it from phhusson
 |---|---|---|
 | ![einkbro](docs/images/einkbro.png) | ![kindle-about](docs/images/kindle-about.png) | ![kindle](docs/images/kindle-reader.png) |
 
-| v1 custom sleep page (post-v1 native AOD uses the SystemUI clock) |
-|---|
-| ![sleep](docs/images/sleep-page.png) |
-
 Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/first-boot-mirrored.jpg` (first boot, before the composer fix).
 
 ## How it works (the parts that took weeks to find)
