@@ -196,7 +196,21 @@ So the KOReader storage problem (3.12) is a *userspace configuration* question, 
 kernel capability one, and building a new kernel -- with all the risk to the vendor HWC's
 `/dev/disp` ioctl ABI, the LM3630A and GT1158 drivers -- buys nothing for it.
 
-**Switching to FUSE was tried and reverted; the result is INCONCLUSIVE.** With
+**Switching to FUSE was then tested properly: it DOES NOT WORK.** (The first attempt was
+misjudged -- see the paragraph after this one.) With `persist.sys.fuse=true`, waiting a full
+**5 minutes past `sys.boot_completed`** (uptime 358 s, long after vold settles on a normal
+boot), the device had **zero sdcardfs mounts and zero fuse mounts**, and `/sdcard` did not
+exist. SystemUI and rotation were fine; only storage was gone. vold cannot bring up the
+Android 11 FUSE stack here, so the sdcardfs limitation in 3.12 stands and KOReader stays
+pinned to v2021.05.
+
+Two practical notes for anyone retrying. `persist.sys.fflag.override.settings_fuse=true`
+**forces `persist.sys.fuse` back to `true` on every boot**, so reverting needs BOTH set to
+`false`; setting only `persist.sys.fuse=false` silently comes back up in the broken state.
+And no data is at risk either way -- `/data/media/0` is untouched throughout; only the
+emulated view disappears.
+
+**The earlier inconclusive reading, for the record.** With
 `persist.sys.fuse=true` the device booted, SystemUI and rotation were fine, but at 48 s
 uptime there were no `emulated` mounts at all. That reading is not trustworthy: the same
 check at the same uptime on the *reverted* boot also showed nothing, and storage was in
