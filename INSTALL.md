@@ -156,6 +156,38 @@ unreadable — re-run step 5's vendor-file section from TWRP.
 returns a number, and that `/vendor/lib/hw/lights.virgo.so` matches the release hash. See
 [docs/FRONTLIGHT.md](docs/FRONTLIGHT.md).
 
+## Is my firmware version supported?
+
+This has been built and tested against exactly one firmware build:
+**`MAS_EPD105_L61B807_T07_V03`** (vendor fingerprint
+`Allwinner/virgo_perf1/virgo-perf1:8.1.0/OPM1.171019.026/20240320-173513`, vendor build date
+2024-03-20). The version string lives in `vendor.img`, not in boot or recovery.
+
+A different version string does **not** automatically mean it won't work — what matters is
+whether your `boot` and `recovery` partitions match. The builders check this for you and
+refuse anything they don't recognise, so you can find out **without flashing anything**:
+
+```
+adb shell su -c "dd if=/dev/block/by-name/boot     bs=4096" > boot.img
+adb shell su -c "dd if=/dev/block/by-name/recovery bs=4096" > recovery.img
+sha256sum boot.img recovery.img
+```
+```
+known-good boot.img      62ce2f881e331303027a1562ec93efebaa49a5700737f8df4e25c86ffcfba83d
+known-good recovery.img  a13a37be5c0e381d0649aac6377967b87946f2cd4cb4c9743292ce1829842b6c
+```
+
+* **Both match** → your partitions are byte-identical to the tested ones. Proceed normally.
+* **They differ** → **stop.** The prebuilt images are the *tested* stock ramdisk plus
+  patches; on a different ramdisk they are untested and can bootloop, and your recovery path
+  (TWRP) is built from that same untested stock. Please open an issue with your two hashes
+  and your version string instead — that is genuinely useful, and adding support is mostly a
+  matter of verifying the ramdisk structure and the init-patch offset against real data.
+
+`a11boot/mkboot.py` also verifies the ramdisk's `init` hash and that the two bytes at the
+patch offset are what it expects, so a coincidentally-matching image with a different init
+is still caught.
+
 ## Known issues
 
 * **The Screen Temperature slider is tied to GSI v313.** It lives inside SystemUI, and a
