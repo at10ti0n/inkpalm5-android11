@@ -148,38 +148,35 @@ not a sign of life.
 
 The boot before the hang started at 01:47; the next entry in the boot log is 11:21, the
 owner's 20-second power hold. Nothing rebooted in between, so every report below belongs to
-one continuous boot. Each dropbox report carries a CPU-usage window, and **the awake fraction
-in that header is the useful part**: a thread holding a core prevents suspend, so a window
-that is mostly asleep is a window in which nothing was spinning.
+one continuous boot. Each dropbox report carries a CPU-usage window with an awake fraction in
+its header.
 
 ```
-02:40-02:51   1% awake    SF  1% of awake time     suspending normally
-08:44-08:48   1% awake    SF 73% of awake time     STILL SUSPENDING NORMALLY
-10:01-10:02   (awake)     SF 99%                   spinning
+02:40-02:51   1% awake    SF  1% of awake time     inconclusive
+08:44-08:48   1% awake    SF 73% of awake time     inconclusive
+10:01-10:02   (awake)     SF 99%                   spinning -- established
 10:03                                              system_server watchdog
 ```
 
-**Two corrections, in successive rounds of review.** The first revision read the 08:48 sample
-as "already spinning": wrong. That window is 4 min 44 s long and 1% awake, i.e. roughly 5.5 s of
-running time, so 73% of it is about 4 s of CPU, not five minutes of a pegged core.
+**Three corrections, in successive rounds of review. The onset is not dated at all.**
 
-The second revision then over-tightened in the other direction, claiming the device was "still
-suspending at 08:48:39" and had "slept normally all night". Neither follows. The awake fraction
-describes the **whole** window, so a spin beginning in its final awake seconds is entirely
-consistent with 1% awake. And there is **no sample at all between 03:06 and 08:44** -- nearly
-six hours with no observation.
+1. The first revision read the 08:48 sample as "already spinning": wrong. That window is
+   4 min 44 s long and 1% awake, i.e. roughly 5.5 s of running time, so 73% of it is about 4 s
+   of CPU, not five minutes of a pegged core.
+2. The second over-tightened the other way, claiming the device was "still suspending at
+   08:48:39" and had "slept normally all night". The awake fraction describes the **whole**
+   window, so a spin beginning in its final seconds fits it -- and there is **no sample at all
+   between 03:06 and 08:44**, nearly six unobserved hours.
+3. The third still rested on "a held core prevents suspend". That premise is **false**: the
+   suspend freezer can freeze a busy userspace thread, so high CPU on its own does not make
+   suspend impossible. Showing that a machine could not suspend needs suspend events, wake
+   sources and their timing -- which incident 1 has (the held display suspend blocker quoted
+   above) and incident 2 does not.
 
-What the evidence actually supports:
-
-* A sustained spin was **not running through the bulk of** 02:40-02:51 or 08:44-08:48, because
-  a held core prevents suspend and both windows are 1% awake. It says nothing about the
-  unsampled hours between them, and nothing about the last seconds of either window.
-* Near-full-core usage **is** established for 10:01:53-10:02:04, and the watchdog fired at
-  10:03:38.
-
-So the onset cannot be dated more precisely than: not sustained across most of the 08:44-08:48
-window, and established by 10:01:53. The device then could not suspend, and the battery -- it
-was off the charger -- ran down some time after the last report at 10:03.
+So the awake percentages date nothing. What survives: **near-full-core usage is established for
+10:01:53-10:02:04**, and the watchdog fired at 10:03:38. Everything earlier is unobserved or
+inconclusive, including whether the night was healthy. The battery -- the device was off the
+charger -- ran down some time after the last report at 10:03.
 
 The watchdog report gives the blocking chain the first incident could only infer:
 
@@ -340,6 +337,39 @@ time on top of the sleep, the scheduler can delay a low-priority shell loop on a
 and suspend stops the loop entirely, so a spin beginning just before a suspend is not seen
 until the device resumes. Treat the logged time as "no later than this", with no useful lower
 bound.
+
+### Decoding a hit on the same instruction
+
+Offline analysis of incident 1's binary (`docs/sf-eventthread/`, reproducible against SHA-256
+`4bf68ec5...`, build ID `5ffeeeeef796a40caaf474d3b30af5f2`) turns the previously useless
+sampled PC into a discriminator. `0x1505e8` is the last instruction of a PLT entry whose GOT
+slot resolves to `android::RefBase::decStrong`; the stub itself contains no loop. Four direct
+calls in the EventThread thread-proxy reach it, and because an intact direct call leaves LR
+untouched at the stub, a register capture at that PC distinguishes them:
+
+| call | LR at the stub | interpreted path |
+| --- | --- | --- |
+| `0xa04e0` | `0xa04e5` | old consumer-vector storage cleanup during reallocation |
+| `0xa050c` | `0xa0511` | temporary strong-reference release while scanning connections |
+| `0xa0674` | `0xa0679` | consumer-vector clear after dispatch |
+| `0xa07be` | `0xa07c3` | consumer-vector destruction on thread exit |
+
+Addresses and LR values are direct observations of the binary; the path names are
+interpretations of the surrounding control flow, cross-checked against a comparable Android 11
+EventThread source. These are the four calls **in that function**, not every caller in
+SurfaceFlinger.
+
+To use it: compute the load bias from the **same incident's** mappings -- never from an
+arbitrary mapping start, and never from the healthy baseline -- normalise the runtime LR by
+that bias, and account for the Thumb bit. Incident 1's own backtrace cannot be decoded this
+way; it has neither registers nor mappings. If the hot thread is caught somewhere else
+entirely, analyse that instruction and its loop instead of forcing this explanation onto it.
+A tombstone is a later snapshot than the profile, so the two disagreeing can mean the state
+moved, not that the data is bad.
+
+Two boundaries from the same analysis: the compiled dispatch path advances past the `-EAGAIN`
+branch rather than retrying the same send in a tight loop, and the function contains
+condition-variable waits. Both weaken simple explanations without proving any path is reached.
 
 The four files that decide the case:
 
