@@ -1,6 +1,9 @@
 # Why suspend fails on the EPD105 — diagnosis from capture 4
 
-Status: **resolved** — run 2 confirms display-side coupling. Verdict and numbers at the end.
+Status: the **dependency** is established (AOD on: suspend never holds; AOD off: it does), and
+that is what the shipped default rests on. The **mechanism** is not: "panel rail noise couples
+into the touch controller" is the leading hypothesis, not a measurement. The verdict section at
+the end was overstated in an earlier revision and is corrected there.
 
 ## The numbers that started this
 
@@ -116,14 +119,25 @@ sy7673a wakes                 9                  0
 minutes.** Four clean suspends. The only wake activity was `rtc` (+3) and `event2`, the
 power key — legitimate alarms and the operator's button press.
 
-### Verdict: (1), display-side coupling
+### Verdict: display-dependent, mechanism unproven
 
-The touch driver does **not** wake the device on its own; if it did, a five-minute window
-would have shown at least some `event0` wakes independent of AOD. It showed zero. The
-spurious touches are induced by the E Ink refresh — the AOD redraw on every resume drives
-the panel rails through the SY7673A, and the capacitive controller registers the noise. That
-touch wakes the system, which redraws, which refreshes, which fires the touch again. Remove
-the redraw and the loop cannot sustain itself.
+What is **measured**: the touch driver does not wake the device on its own. A five-minute
+window with nothing being drawn produced zero `event0` wakes, against 34 with the AOD clock
+on. So the spurious touch events depend on display activity, and removing the redraw removes
+the loop. That dependency is solid, and it is what the shipped default rests on.
+
+What is **not measured**, and was written as established fact in an earlier revision: *why*.
+"The panel rails driven through the SY7673A couple into the capacitive controller, which
+registers the noise" is a plausible mechanism and the leading hypothesis, but nothing here
+measured any coupling. Alternatives fit the same data equally well: the GT1X driver's reset
+and interrupt handling across a panel power transition, a shared regulator or reference
+disturbed by the panel, or a timing effect rather than an electrical one. Separating them
+needs instrumented measurement at the controller, not a wake-count table.
+
+The practical consequence: **masking the touch IRQ during refresh is a candidate fix, not an
+established one.** If the cause is driver state across the transition rather than noise during
+it, masking may not help at all. Any such kernel work is an experiment with a measurable
+success criterion -- touch wakes per hour with AOD on -- not the implementation of a known fix.
 
 The timing detail that makes it a *suspend* problem: the panel power cycle is ~277 ms and
 the `sy7673a_wakelock` covers it, but the system begins its next suspend attempt almost
@@ -135,10 +149,11 @@ immediately after the redraw is submitted. A touch event arriving while freezing
 * **Immediate, zero-risk: leave AOD off.** Sleep shows a black screen instead of the clock.
   Suspend then holds cleanly (this run). Trade: no sleep-screen clock. This is the device's
   state as of the end of this investigation; restoring `doze_always_on=1` restores the drain.
-* **Keeping AOD requires breaking one link in the loop, and both are kernel-side:** either
+* **Keeping AOD requires breaking one link in the loop, and both candidates are kernel-side:**
   mask the touch IRQ while the panel is powered (a GT1X ↔ E Ink driver interaction), or hold
-  the `sy7673a_wakelock` for some margin past `power_down` so the trailing noise cannot land
-  mid-freeze. Neither can be done on the stock binary kernel.
+  the `sy7673a_wakelock` for some margin past `power_down`. Neither can be done on the stock
+  binary kernel, and neither is known to work -- they follow from the hypothesis above, which
+  is why they stay experiments.
 
 That last point is worth stating plainly: after two days of concluding the kernel *upgrade*
 had no payoff, this is the **first concrete, well-scoped piece of kernel driver work with a

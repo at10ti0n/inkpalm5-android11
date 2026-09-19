@@ -328,5 +328,21 @@ the first incident only shows it is not *necessary* for the failure, not that it
 Second, and independent of all that: the 800 ms callback goes to sleep unconditionally. It
 never rechecks whether the user touched the screen inside that window, so a touch arriving
 between the keyguard appearing and the sleep firing is ignored and the device sleeps anyway.
-Both paths have this defect (`InkpalmSleep`, `InkpalmTimeoutSleep`). Fix before reinstating:
-recheck `mLastUserActivityTime` in the callback, or cancel the posted Runnable on user activity.
+Both paths had this defect. **Fixed offline on 2026-09-19, built and verified but deliberately
+NOT installed** -- the device stays on the stock framework while the SurfaceFlinger hang is
+under observation.
+
+The fix is a user-activity interlock. The two services cannot call each other without patching
+`framework.jar` as well, but both classes live in `services.jar`, so a pair of statics on
+`InkpalmSleep` is the cheapest channel: `sArmTime`, written by `arm()` when either path arms a
+delayed sleep, and `sLastActivity`, written by `PowerManagerService.userActivityNoUpdateLocked`
+-- the one place that sees every user-activity event. At fire time `cancelled()` reports
+`sLastActivity > sArmTime`, and the sleep is abandoned (the timeout path also calls
+`inkpalmDisarm()` so the ordinary machinery starts over). Writing `p1` straight to the static
+needs no free register, so no method's `.locals` changes.
+
+Verified in the rebuilt dex, not on the device: all six methods present
+(`inkpalmSleepNow` x2, `inkpalmLockNow`, `inkpalmDisarm`, `arm`, `cancelled`), both statics
+present, the write landing inside `userActivityNoUpdateLocked`, `arm()` called from both
+`powerPress` and `inkpalmLockNow`, and `cancelled()` consulted by both runnables. Whether it
+behaves correctly on the device is untested and stays that way for now.

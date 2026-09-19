@@ -314,8 +314,10 @@ samples, so what spins during the failure remains unanswered until a live captur
 
 The capture runs by itself. The one thing that needs a human is **getting it off the device
 before the reboot**, and not rebooting first. If the screen is frozen and the power button
-appears dead, try ADB before the 20-second power hold: in both incidents so far ADB was alive
-long after the UI was gone (in the second, it survived until the battery died).
+appears dead, **try ADB before the 20-second power hold**. In incident 1 ADB was alive long
+after the UI was gone, which is how that evidence exists at all. For incident 2 nothing
+establishes whether ADB ever responded: by the time the device was looked at, USB enumerated
+nothing, and no one tried earlier. So this is worth attempting, not something to count on.
 
 ```sh
 adb shell su -c 'ls -t /data/local/sf-hang'            # newest capture-<timestamp> first
@@ -325,8 +327,13 @@ adb shell su -c 'base64 /data/local/tmp/sf-hang.tgz' | tr -d '\r' | base64 -d > 
 
 The base64 hop is not decoration: piping binary through `adb shell` corrupts it (a `live.dtb`
 earlier in this project came back with 75 stray CR bytes). Take the **whole** directory,
-`sf-watch.log` included -- the log says when the spin started and which thread tripped it,
-which the capture itself does not.
+`sf-watch.log` included -- it names the thread that tripped the threshold and when the
+**threshold** was met, which the capture itself does not record.
+
+Be precise about what that timestamp is: the watcher fires after one thread has held 80% of a
+core across three consecutive 15 s samples, so the logged time is **up to ~45 s after the spin
+began, and only for a spin that is sustained**. It is an upper bound on onset, not the onset.
+A brief burst that clears before the third sample is never logged at all.
 
 The four files that decide the case:
 

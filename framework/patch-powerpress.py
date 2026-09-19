@@ -59,11 +59,22 @@ def patch_pms(p):
     body = m.group(0).replace(old, new, 1)
     s = s[:m.start()] + body + s[m.end():]
     s = s.replace('# instance fields\n', '# instance fields\n.field private mInkpalmArmed:Z\n\n', 1)
+    # Every user-activity event passes through userActivityNoUpdateLocked, which makes it
+    # the one place that can tell a delayed sleep the user is still using the device. p1 is
+    # eventTime (J) in the same uptimeMillis base InkpalmSleep.arm() uses, and writing a
+    # static from a param register needs no free register, so .locals is untouched.
+    m2 = re.search(r'\.method private userActivityNoUpdateLocked\(JIII\)Z\n(?:[^\n]*\n)*?\n', s)
+    if not m2:
+        sys.exit('userActivityNoUpdateLocked prologue not found -- different framework build?')
+    ins = '    sput-wide p1, Lcom/android/server/policy/InkpalmSleep;->sLastActivity:J\n\n'
+    s = s[:m2.end()] + ins + s[m2.end():]
     s += """
 # inkpalm: stage 0 of the idle-timeout sleep -- show the keyguard with the screen on, then
 # schedule the real sleep 800 ms later.
 .method inkpalmLockNow()V
     .registers 5
+
+    invoke-static {}, Lcom/android/server/policy/InkpalmSleep;->arm()V
 
     iget-object v0, p0, Lcom/android/server/power/PowerManagerService;->mPolicy:Lcom/android/server/policy/WindowManagerPolicy;
 
@@ -85,6 +96,18 @@ def patch_pms(p):
     const-wide/16 v2, 0x320
 
     invoke-virtual {v1, v0, v2, v3}, Landroid/os/Handler;->postDelayed(Ljava/lang/Runnable;J)Z
+
+    return-void
+.end method
+
+# inkpalm: the user touched the screen inside the delay window -- drop the arm so the ordinary
+# timeout machinery starts again from scratch.
+.method inkpalmDisarm()V
+    .registers 2
+
+    const/4 v0, 0x0
+
+    iput-boolean v0, p0, Lcom/android/server/power/PowerManagerService;->mInkpalmArmed:Z
 
     return-void
 .end method
@@ -141,6 +164,8 @@ new = f'''    :cond_{label}
     const/4 v0, 0x0
 
     invoke-virtual {{p0, v0}}, Lcom/android/server/policy/PhoneWindowManager;->lockNow(Landroid/os/Bundle;)V
+
+    invoke-static {{}}, Lcom/android/server/policy/InkpalmSleep;->arm()V
 
     new-instance v0, Lcom/android/server/policy/InkpalmSleep;
 
