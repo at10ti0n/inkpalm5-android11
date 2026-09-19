@@ -146,15 +146,25 @@ not a sign of life.
 
 ## Same failure, now with a timeline
 
-The boot before the hang started at 01:47 and never rebooted itself. Dropbox reports from
-that boot pin down when SurfaceFlinger started spinning:
+The boot before the hang started at 01:47; the next entry in the boot log is 11:21, the
+owner's 20-second power hold. Nothing rebooted in between, so every report below belongs to
+one continuous boot. Each dropbox report carries a CPU-usage window, and **the awake fraction
+in that header is the useful part**: a thread holding a core prevents suspend, so a window
+that is mostly asleep is a window in which nothing was spinning.
 
 ```
-02:51   SF  1% user    (device asleep, healthy)
-08:48   SF 73% user    already spinning
-10:02   SF 99% user    Kindle ANR: Broadcast of Intent SCREEN_OFF
-10:03   system_server watchdog
+02:40-02:51   1% awake    SF  1% of awake time     suspending normally
+08:44-08:48   1% awake    SF 73% of awake time     STILL SUSPENDING NORMALLY
+10:01-10:02   (awake)     SF 99%                   spinning
+10:03                                              system_server watchdog
 ```
+
+**Correction.** An earlier revision read the 08:48 sample as "already spinning". It is not.
+That window is 4 min 44 s long and 1% awake, i.e. roughly 5.5 s of running time, and 73% of
+5.5 s is about 4 s of CPU. More decisively: the device was still reaching suspend at 08:48,
+which a spun-up core makes impossible. So the sustained hang began **after 08:48:39 and before
+10:01:53**, not during the night. The device then could not suspend, and the battery -- it was
+off the charger -- ran down some time after the last report at 10:03.
 
 The watchdog report gives the blocking chain the first incident could only infer:
 
@@ -167,6 +177,13 @@ Binder:2298_D   WindowState.removeIfPossible -> ... -> SurfaceAnimator.createAni
                 holds WindowManagerGlobalLock, blocked in binder ioctl into
                 SurfaceComposerClient::createSurface                        <- never returns
 ```
+
+Read the chain from the bottom: an application process died, and the cleanup of its windows
+transferred the input-method control target, which starts an animation, which builds a leash,
+which asks SurfaceFlinger for a surface. **This is window teardown involving IME controls, not
+keyguard creation** -- worth stating plainly, because it is not evidence for or against the
+framework patch below. It is simply the caller that happened to be holding both locks when SF
+stopped answering.
 
 So: SF spins on one core, a `createSurface` binder call into it never returns, the caller
 holds the window-manager lock, its caller holds the AMS lock, and the whole system wedges
@@ -195,9 +212,10 @@ transition driving EventThread/surface work on a panel with no hardware vsync**.
 
 Honest caveat: this hang followed, by ~7 hours, the framework patch that makes every
 screen-off show the keyguard first (§3.17). That patch adds keyguard window and surface
-creation to a transition that previously created nothing, on exactly the code path that is
-stuck here (`createAnimationLeash` -> `createSurface`). It cannot be blamed on the evidence
-available -- the identical hang predates it by two days -- but it cannot be cleared either,
+creation to a transition that previously created nothing, so it plausibly changes timing and
+exposure around display transitions. It is **not** implicated by the stack above, which is
+window-death/IME cleanup and would have run with or without it. It cannot be blamed on the
+evidence available -- the identical hang predates it by two days -- but it cannot be cleared either,
 and it plausibly increases exposure. Two data points in two months is not a rate that
 distinguishes the two hypotheses.
 
@@ -206,8 +224,14 @@ shows it is **not necessary** for the failure, not that it is harmless. AOD bein
 incident 2 likewise only removes AOD as a *necessary* condition; it does not clear
 display-transition bugs generally. **Decision: the patch is rolled back for everyday use**
 (stock `services.jar` and its odex restored, verified 2026-09-19), while the corrected
-instrumentation stays. It can be reinstated deliberately once there is a capture to reason
-about.
+instrumentation stays.
+
+It stays rolled back for a second, independent reason found in review: the 800 ms callback it
+posts goes to sleep unconditionally and never rechecks whether the user touched the screen in
+the meantime, so a touch landing inside that window is ignored and the device sleeps anyway.
+That is a defect in the patch on its own terms, regardless of the SurfaceFlinger question, and
+must be fixed (recheck `mLastUserActivityTime`, or cancel the callback on user activity) before
+it is reinstated.
 
 ## The instrumentation (`tools/sf-watch.sh` + `tools/sf-capture.sh`)
 
@@ -225,8 +249,10 @@ Each incident gets its own directory under `/data/local/sf-hang/`, with a 30-min
 and the six most recent kept. No wakelock and no wake alarm, so it cannot keep the device
 awake; while suspended it simply does not tick. Started from `configs/a11-boot-fixups.sh`.
 
-A first version of this watcher was written and reviewed before deployment; the review found
-four defects worth recording, since three are easy to repeat:
+Two rounds of review found nine defects between them. They are listed because most are easy
+to repeat, and because every one would have cost the next occurrence.
+
+First round, on the original detector:
 
 * **The threshold was nonsense.** 20 ticks per 60 s at `HZ=100` is 0.33% of a core, not 20%.
   Ordinary activity would have tripped it. (Its own log line printed "0% of a core" and that
@@ -240,7 +266,28 @@ four defects worth recording, since three are easy to repeat:
 And one that made it useless outright: in this shell `$14` expands as `$1` followed by `4`, so
 the sampler read the pid, the delta was always zero, and it could never have fired. Use `${14}`.
 
+Second round, on the replacement:
+
+* **A 30-minute blind spot at every boot.** The cooldown was compared against a `last_cap` of
+  zero, so no capture was possible until uptime passed 1800 s. The cooldown now applies only
+  after a capture has actually happened.
+* **Per-thread counters were not actually dropped on a pid change**, despite the comment saying
+  so, leaving `T_<tid>` entries that a reused thread id in the new process could be diffed
+  against. They are now unset explicitly, exited threads are forgotten each pass, and each
+  cached counter carries the thread's `starttime`, so a reused id cannot match a stale entry.
+* **The tombstone was queued behind two `dumpsys` calls**, up to 30 s of delay on the one
+  artefact that carries registers, during a failure in which `dumpsys` is exactly what hangs.
+  `debuggerd` now runs immediately after the profile; every `dumpsys` runs after it.
+* **Command failures could look like success.** The script's exit status was whichever command
+  ran last, so a lost profile or a failed tombstone would have been invisible. Each command's
+  status is now recorded in `exit-status.txt`, and the script exits non-zero if any failed.
+
 Verified on the device 2026-09-19: simpleperf on a deliberately spinning process gave 603
 samples, 0 lost, symbolized; the watcher measured 94-103% of a core for that thread, triggered
-after the configured intervals, ran the capture and kept watching; a healthy baseline capture
-took 10 s and produced a tombstone with registers for all 19 SF threads.
+after the configured intervals, ran the capture and kept watching; a capture fired at 603 s
+uptime, which the blind spot would have blocked; a simulated pid change logged "counters
+dropped", produced no bogus trigger from stale state and read the new process correctly; and a
+healthy baseline capture wrote `state -> memory -> maps -> perf -> tombstone -> dumpsys ->
+logcat -> dmesg` in that order, with registers for all 19 SF threads and `failed_commands=0`.
+That baseline proves the output format and nothing else: with SF idle simpleperf records zero
+samples, so what spins during the failure remains unanswered until a live capture exists.

@@ -317,3 +317,16 @@ with reason TIMEOUT) and arms a flag so the bedtime checks that keep firing in b
 nothing. Measured with a 15 s timeout: `showLocked` at T, `Going to sleep due to timeout`
 at T+795 ms. Test-setup lesson: `input keyevent KEYCODE_WAKEUP` lands on the lock screen,
 where both patches deliberately sleep at once -- dismiss it and check `mIsShowing` first.
+
+## 3.18 The keyguard-before-sleep patch is rolled back (two reasons)
+Rolled back on 2026-09-19, stock `services.jar` + odex restored, verified. First, it adds
+surface creation to every display transition, and the device hung overnight (second
+SurfaceFlinger livelock, docs/INCIDENT-SF-LIVELOCK.md). The hang's own stack is window-death
+and IME-control cleanup, so it does not implicate the patch -- but the patch's absence during
+the first incident only shows it is not *necessary* for the failure, not that it is harmless.
+
+Second, and independent of all that: the 800 ms callback goes to sleep unconditionally. It
+never rechecks whether the user touched the screen inside that window, so a touch arriving
+between the keyguard appearing and the sleep firing is ignored and the device sleeps anyway.
+Both paths have this defect (`InkpalmSleep`, `InkpalmTimeoutSleep`). Fix before reinstating:
+recheck `mLastUserActivityTime` in the callback, or cancel the posted Runnable on user activity.

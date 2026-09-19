@@ -1,96 +1,105 @@
 #!/system/bin/sh
 # Detect the SurfaceFlinger livelock (docs/INCIDENT-SF-LIVELOCK.md) WHILE IT IS HAPPENING and
 # capture it. Both incidents so far were found hours later with the evidence already gone: the
-# watchdog report names the callers blocked on SurfaceFlinger, but not what SF itself is doing.
+# watchdog report names the callers blocked on SurfaceFlinger, but nothing says what SF itself
+# was doing. Only a live CPU profile and a register-bearing tombstone can answer that.
 #
 #   run now:  adb shell su -c 'setsid sh /data/local/sf-watch.sh >/dev/null 2>&1 &'
 #   status:   adb shell su -c 'cat /data/local/sf-hang/status; ls /data/local/sf-hang'
 #
 # Trigger: ANY SurfaceFlinger thread above 80% of one core for three consecutive intervals
-# (~45 s). Idle is 3-4 ticks/minute, and even heavy page-turning never holds one core for 45 s,
-# so this does not fire on ordinary use. Percentages are computed from CLK_TCK and the MEASURED
-# elapsed time, not an assumed interval, and all counters reset when the SF pid changes.
+# (~45 s). Idle is a few ticks per minute, and no ordinary use holds one core that long.
+# Percentages come from CLK_TCK and the MEASURED elapsed uptime, never an assumed interval.
 #
-# It holds no wakelock and sets no wake alarm, so it cannot keep the device awake; while the
-# device is suspended it simply does not tick. It keeps watching after a capture (cooldown
-# below) instead of exiting, and each incident goes in its own directory.
+# No wakelock and no wake alarm, so it cannot keep the device awake; while the device is
+# suspended it simply does not tick. It keeps watching after a capture instead of exiting.
 set -u
 OUT=/data/local/sf-hang
 CAP=/data/local/sf-capture.sh
 BUSY_PCT=80          # of one core
 BUSY_N=3             # consecutive intervals over BUSY_PCT before capturing
 INTERVAL=15          # seconds between samples
-COOLDOWN=1800        # seconds after a capture before another may start
+COOLDOWN=1800        # seconds AFTER A CAPTURE before another may start
 KEEP=6               # most recent capture directories to keep
 mkdir -p "$OUT"
 HZ=$(getconf CLK_TCK); case "$HZ" in ''|*[!0-9]*) HZ=100;; esac
 log() { echo "$(date '+%m-%d %H:%M:%S') $*" >> "$OUT/sf-watch.log"; }
-
 now_s() { read -r up rest < /proc/uptime; now=${up%%.*}; }
-# utime+stime of one task, in ticks. Strips through ") " first: the comm field can contain
-# anything, including spaces and brackets.
+
+# utime+stime and starttime for one task. Strips through ") " first: comm can contain spaces
+# and brackets. starttime is carried so a REUSED thread id cannot be diffed against the
+# counters of the thread that previously held it.
 ticks_of() {
   read -r line < "$1" || return 1
   set -- ${line##*') '}
-  [ $# -ge 13 ] || return 1
+  [ $# -ge 20 ] || return 1
   shift 11
-  ticks=$(( $1 + $2 ))
+  ticks=$(( $1 + $2 )); startt=$9
+}
+# Drop every cached per-thread counter (pid changed: they all belong to a dead process).
+forget_all() {
+  for _t in ${SEEN:-}; do unset "T_$_t"; done
+  SEEN=
 }
 
 log "sf-watch started (interval ${INTERVAL}s, trigger ${BUSY_PCT}% x ${BUSY_N}, HZ=$HZ)"
-pid=0; last_cap=0
+pid=0; SEEN=; last_cap=       # empty = no capture yet, so the cooldown cannot gate the first one
 while :; do
   now_s
   cur=$(pidof surfaceflinger)
   if [ -z "$cur" ]; then
-    [ "$pid" != 0 ] && { log "SurfaceFlinger NOT RUNNING"; pid=0; }
+    [ "$pid" != 0 ] && { log "SurfaceFlinger NOT RUNNING"; pid=0; forget_all; }
     sleep "$INTERVAL"; continue
   fi
   if [ "$cur" != "$pid" ]; then
-    # New process: every cached counter belongs to the dead one.
-    [ "$pid" != 0 ] && log "SurfaceFlinger pid changed $pid -> $cur (counters reset)"
-    pid=$cur; prev_t=0; prev_time=$now; hot=0; hot_tid=
+    [ "$pid" != 0 ] && log "SurfaceFlinger pid changed $pid -> $cur (counters dropped)"
+    forget_all
+    pid=$cur; prev_time=$now; hot=0; hot_tid=
     for t in /proc/$pid/task/*; do
-      ticks_of "$t/stat" && prev_t=$((prev_t + ticks))
+      ticks_of "$t/stat" || continue
+      tid=${t##*/}; eval "T_$tid=\"\$ticks:\$startt\""; SEEN="$SEEN $tid"
     done
     sleep "$INTERVAL"; continue
   fi
 
-  # Busiest single thread over the measured elapsed time.
   elapsed=$((now - prev_time))
   [ "$elapsed" -le 0 ] && { sleep "$INTERVAL"; continue; }
-  top_pct=0; top_tid=; tot=0
+  top_pct=0; top_tid=; new_seen=
   for t in /proc/$pid/task/*; do
     ticks_of "$t/stat" || continue
-    tid=${t##*/}; tot=$((tot + ticks))
+    tid=${t##*/}; new_seen="$new_seen $tid"
     eval "p=\${T_$tid:-}"
-    if [ -n "$p" ]; then
-      pct=$(( (ticks - p) * 100 / (HZ * elapsed) ))
+    # Same thread id AND same start time, or the previous counter is not comparable.
+    if [ -n "$p" ] && [ "${p#*:}" = "$startt" ]; then
+      pct=$(( (ticks - ${p%%:*}) * 100 / (HZ * elapsed) ))
       if [ "$pct" -gt "$top_pct" ]; then top_pct=$pct; top_tid=$tid; fi
     fi
-    eval "T_$tid=\$ticks"
+    eval "T_$tid=\"\$ticks:\$startt\""
   done
-  proc_pct=$(( (tot - prev_t) * 100 / (HZ * elapsed) ))
-  prev_t=$tot; prev_time=$now
+  # Forget threads that have exited, so a later reuse of the id starts clean.
+  for t in $SEEN; do
+    case " $new_seen " in *" $t "*) ;; *) unset "T_$t";; esac
+  done
+  SEEN=$new_seen
+  prev_time=$now
 
-  if [ "$top_pct" -ge "$BUSY_PCT" ]; then
-    [ "$top_tid" = "${hot_tid:-}" ] && hot=$((hot + 1)) || hot=1
-    hot_tid=$top_tid
+  if [ "$top_pct" -ge "$BUSY_PCT" ] && [ "$top_tid" = "${hot_tid:-}" ]; then
+    hot=$((hot + 1))
+  elif [ "$top_pct" -ge "$BUSY_PCT" ]; then
+    hot=1; hot_tid=$top_tid
   else
     hot=0; hot_tid=
   fi
   comm=; [ -n "$top_tid" ] && [ -r /proc/$pid/task/$top_tid/comm ] && read -r comm < /proc/$pid/task/$top_tid/comm
-  echo "$(date '+%m-%d %H:%M:%S') pid=$pid proc=${proc_pct}% top=${top_pct}% tid=${top_tid:-none} comm=${comm:-?} hot=$hot" > "$OUT/status"
+  echo "$(date '+%m-%d %H:%M:%S') pid=$pid top=${top_pct}% tid=${top_tid:-none} comm=${comm:-?} hot=$hot" > "$OUT/status"
 
-  if [ "$hot" -ge "$BUSY_N" ] && [ $((now - last_cap)) -ge "$COOLDOWN" ]; then
+  if [ "$hot" -ge "$BUSY_N" ] && { [ -z "$last_cap" ] || [ $((now - last_cap)) -ge "$COOLDOWN" ]; }; then
     d="$OUT/capture-$(date '+%Y%m%d-%H%M%S')"
     log "LIVELOCK SUSPECTED pid=$pid tid=$top_tid comm=${comm:-?} ${top_pct}% of a core for $((BUSY_N * INTERVAL))s -> $d"
-    echo "spinning thread: tid=$top_tid comm=${comm:-?} ${top_pct}%" > "$OUT/trigger.txt"
+    mkdir -p "$d"; echo "spinning thread: tid=$top_tid comm=${comm:-?} ${top_pct}% of a core" > "$d/trigger.txt"
     sh "$CAP" "$d" >> "$OUT/sf-watch.log" 2>&1
-    log "capture finished status=$? -> $d"
-    cp "$OUT/trigger.txt" "$d/trigger.txt" 2>/dev/null
+    log "capture exit=$? -> $d ($(cat "$d/exit-status.txt" 2>/dev/null | tr '\n' ' '))"
     last_cap=$now; hot=0; hot_tid=
-    # Keep only the most recent KEEP captures.
     n=0
     for c in $(ls -1dt "$OUT"/capture-* 2>/dev/null); do
       n=$((n + 1)); [ "$n" -gt "$KEEP" ] && rm -rf "$c"
