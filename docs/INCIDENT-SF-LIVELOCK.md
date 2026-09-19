@@ -306,3 +306,42 @@ healthy baseline capture wrote `state -> memory -> maps -> perf -> tombstone -> 
 logcat -> dmesg` in that order, with registers for all 19 SF threads and `failed_commands=0`.
 That baseline proves the output format and nothing else: with SF idle simpleperf records zero
 samples, so what spins during the failure remains unanswered until a live capture exists.
+
+
+---
+
+# If it happens again: what to collect, before rebooting
+
+The capture runs by itself. The one thing that needs a human is **getting it off the device
+before the reboot**, and not rebooting first. If the screen is frozen and the power button
+appears dead, try ADB before the 20-second power hold: in both incidents so far ADB was alive
+long after the UI was gone (in the second, it survived until the battery died).
+
+```sh
+adb shell su -c 'ls -t /data/local/sf-hang'            # newest capture-<timestamp> first
+adb shell su -c 'tar czf /data/local/tmp/sf-hang.tgz -C /data/local sf-hang'
+adb shell su -c 'base64 /data/local/tmp/sf-hang.tgz' | tr -d '\r' | base64 -d > sf-hang.tgz
+```
+
+The base64 hop is not decoration: piping binary through `adb shell` corrupts it (a `live.dtb`
+earlier in this project came back with 75 stray CR bytes). Take the **whole** directory,
+`sf-watch.log` included -- the log says when the spin started and which thread tripped it,
+which the capture itself does not.
+
+The four files that decide the case:
+
+| file | why |
+|---|---|
+| `perf.data` | 5 s of PCs from inside the spinning thread. This is the artefact both incidents lacked. |
+| `sf-tombstone.txt` | registers and stack for every thread, so the loop has a caller, not just a PLT stub |
+| `sf-maps.txt` | turns those PCs into symbols offline |
+| `exit-status.txt` | says which of the above actually succeeded |
+
+**Keep the directory even when the script exits 4.** Exit 4 means something decisive is
+missing; it does not mean the rest is worthless. Timeouts on `dumpsys` are recorded as soft
+failures and deliberately do not fail the capture -- during this failure `dumpsys` hangs
+*because* system_server is wedged, so a capture full of dumpsys timeouts that still holds a
+profile and a tombstone is exactly the capture worth having.
+
+A non-empty `perf.data` is not proof of usable samples, and a non-empty tombstone is not proof
+of a resolved stack. Those are judged on the contents, once there are contents to judge.
