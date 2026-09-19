@@ -37,4 +37,10 @@ fi
 # Stopping them leaves Settings, SystemUI and the phone process healthy (verified).
 stop ril-daemon 2>/dev/null
 stop radio_monitor-daemon 2>/dev/null
+# SurfaceFlinger livelock detector (docs/INCIDENT-SF-LIVELOCK.md). Both hangs so far were
+# found hours later with the logs gone; this records the start time and grabs the stacks.
+# It holds no wakelock and writes a line only when SF is actually burning CPU.
+[ -x /data/local/sf-watch.sh ] && ! pgrep -f "[s]f-watch.sh" >/dev/null 2>&1 && \
+  setsid sh /data/local/sf-watch.sh >/dev/null 2>&1 &
+
 echo "$(date) done user_rotation=$(settings get system user_rotation)" >> $L

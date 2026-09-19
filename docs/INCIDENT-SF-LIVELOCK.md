@@ -1,4 +1,4 @@
-# Incident 2026-09-17/18: device hot, screen frozen, power button dead
+# Incidents 2026-09-17/18 and 2026-09-19: device hot, screen frozen, power button dead
 
 Reported by the operator: "device seems hot to touch even after being unplugged", then
 "it seems stuck, can't open it back with power button".  Captured live over ADB before any
@@ -132,3 +132,72 @@ be kept private: logs and tombstones can contain application data. If the screen
 freezes again, connect USB and collect the output before rebooting. This watcher
 preserves evidence; it does not repair or recover from the hang. No battery-life
 claim is made for the instrumentation overhead.
+
+
+---
+
+# Second occurrence, 2026-09-19 (overnight, same signature)
+
+Reported as "the device is stuck, it was left off the cable overnight". USB enumerated
+nothing at all for 3+ minutes -- no ADB, not even a charging device -- so the SoC was not
+running; a 20 s power hold brought back the Moaan logo and a normal boot. The panel had been
+showing the standby letterpress image the whole time, which is E Ink holding its last frame,
+not a sign of life.
+
+## Same failure, now with a timeline
+
+The boot before the hang started at 01:47 and never rebooted itself. Dropbox reports from
+that boot pin down when SurfaceFlinger started spinning:
+
+```
+02:51   SF  1% user    (device asleep, healthy)
+08:48   SF 73% user    already spinning
+10:02   SF 99% user    Kindle ANR: Broadcast of Intent SCREEN_OFF
+10:03   system_server watchdog
+```
+
+The watchdog report gives the blocking chain the first incident could only infer:
+
+```
+main            Notifier -> AMS.onWakefulnessChanged   waiting on AMS lock  (thread 11)
+android.fg      Watchdog HandlerChecker                waiting on AMS lock  (thread 11)
+Binder:2298_2   AMS.appDiedLocked -> ProcessRecord.makeInactive
+                holds AMS lock, waiting on WindowManagerGlobalLock          (thread 114)
+Binder:2298_D   WindowState.removeIfPossible -> ... -> SurfaceAnimator.createAnimationLeash
+                holds WindowManagerGlobalLock, blocked in binder ioctl into
+                SurfaceComposerClient::createSurface                        <- never returns
+```
+
+So: SF spins on one core, a `createSurface` binder call into it never returns, the caller
+holds the window-manager lock, its caller holds the AMS lock, and the whole system wedges
+behind those two locks. One core pegged means no suspend, which is what flattens the battery
+overnight. Consistent with incident 1 in every respect.
+
+## What is different, and what that does and does not tell us
+
+Incident 1 ran with AOD on and was blamed on doze/AOD transitions. AOD has been off since
+2026-09-19, so that trigger is ruled out for this one. What both share is a **display-state
+transition driving EventThread/surface work on a panel with no hardware vsync**.
+
+Honest caveat: this hang followed, by ~7 hours, the framework patch that makes every
+screen-off show the keyguard first (§3.17). That patch adds keyguard window and surface
+creation to a transition that previously created nothing, on exactly the code path that is
+stuck here (`createAnimationLeash` -> `createSurface`). It cannot be blamed on the evidence
+available -- the identical hang predates it by two days -- but it cannot be cleared either,
+and it plausibly increases exposure. Two prior data points in two months is not a rate that
+distinguishes the two hypotheses.
+
+## The detector (`tools/sf-watch.sh`)
+
+Both hangs were found hours late with the logs already gone. `tools/sf-watch.sh` samples
+SurfaceFlinger's own `utime+stime` from `/proc/<pid>/stat` once a minute and writes a line
+only when it exceeds 20 ticks per 60 s, so the log stays small; on first detection it dumps
+all SF threads with `debuggerd -b` to `/data/local/sf-hang-stacks.txt`. It holds no wakelock,
+so it cannot keep the device awake, and while suspended it simply does not tick. Started from
+`configs/a11-boot-fixups.sh` at every boot.
+
+Verified 2026-09-19: healthy idle reads 3-4 ticks/60 s, and the stack capture produces a
+25 KB dump with all 19 SF threads symbolized -- which is precisely the artefact missing from
+both incidents. One shell-portability trap is worth noting because it made the first version
+silently useless: in this shell `$14` expands as `$1` followed by `4`, so the sampler read the
+pid instead of the CPU counters and the delta was always zero. Use `${14}`.

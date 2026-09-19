@@ -109,6 +109,7 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
     frontlight/ replacement lights HAL: brightness slider + warmth
     systemui/   SystemUI patch: warmth slider in Quick Settings, lock-screen clock hidden
     framework/  services.jar patch: power press draws the lock screen before the display goes off
+    tools/      sf-watch.sh: SurfaceFlinger livelock detector (runs from the boot script)
     docs/       REFRESH-CONTROL.md, FRONTLIGHT.md, INCIDENT-SF-LIVELOCK.md, images/
 
 ## Credits

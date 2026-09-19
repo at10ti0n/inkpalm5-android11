@@ -21,6 +21,7 @@ adb push "$R/configs/pmu1736-powerkey.kl"          /sdcard/
 adb push "$R/configs/Vendor_dead_Product_beef.kl"  /sdcard/
 adb push "$R/configs/Vendor_dead_Product_beef.idc" /sdcard/
 adb push "$R/configs/a11-boot-fixups.sh"           /sdcard/
+adb push "$R/tools/sf-watch.sh"                    /sdcard/
 adb push "$R/configs/configure-native.sh"          /sdcard/
 
 adb shell "su -c '
@@ -31,8 +32,9 @@ cp /sdcard/Vendor_dead_Product_beef.idc /data/system/devices/idc/
 chown -R system:system /data/system/devices
 chmod 644 /data/system/devices/keylayout/*.kl /data/system/devices/idc/*.idc
 cp /sdcard/a11-boot-fixups.sh /data/local/a11-boot-fixups.sh
-chmod 755 /data/local/a11-boot-fixups.sh
-rm -f /sdcard/sunxi-gpadc0.kl /sdcard/sunxi-keyboard.kl /sdcard/pmu1736-powerkey.kl /sdcard/Vendor_dead_Product_beef.kl /sdcard/Vendor_dead_Product_beef.idc /sdcard/a11-boot-fixups.sh
+cp /sdcard/sf-watch.sh /data/local/sf-watch.sh
+chmod 755 /data/local/a11-boot-fixups.sh /data/local/sf-watch.sh
+rm -f /sdcard/sf-watch.sh /sdcard/sunxi-gpadc0.kl /sdcard/sunxi-keyboard.kl /sdcard/pmu1736-powerkey.kl /sdcard/Vendor_dead_Product_beef.kl /sdcard/Vendor_dead_Product_beef.idc /sdcard/a11-boot-fixups.sh
 echo \"  input configs installed\"
 '" | tr -d '\r'
 

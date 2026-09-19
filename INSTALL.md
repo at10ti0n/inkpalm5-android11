@@ -211,12 +211,13 @@ is still caught.
   against your own SystemUI with `systemui/patch-systemui.sh` ([BUILDING.md](BUILDING.md)).
   Reflashing or updating the GSI later reverts it — re-run the patch.
 
-* **One unexplained freeze.** On 2026-09-17, after ~2.5 h uptime, SurfaceFlinger livelocked:
-  the screen froze on its last image, the power button appeared dead, and the device got
-  warm and stopped sleeping. ADB still worked; a reboot fixed it. It has happened once in
-  two months. Diagnosed but **not fixed** — full evidence and next steps in
-  [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). If it happens to you,
-  please run `a11/gate17/build/hang/capture.sh` **before** rebooting and open an issue.
+* **Two unexplained freezes so far** (2026-09-17 and 2026-09-19, in about two months of
+  daily use). SurfaceFlinger starts spinning on one core, nothing composites, the panel keeps
+  its last image and the device looks switched off; because it cannot suspend, it flattens the
+  battery. Recovery is a 20-second power-button hold. Diagnosed but not fixed, see
+  [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). A detector
+  (`tools/sf-watch.sh`) is installed and runs at every boot: if it happens to you, send
+  `/data/local/sf-watch.log` and `/data/local/sf-hang-stacks.txt`.
 * **Landscape for a moment at every boot**, before the rotation lock applies.
 * **Battery life is not characterised yet.** Suspend works; long-term numbers are pending.
 * **Untested:** audio (no speaker on this device), Bluetooth (declared, kept off).
