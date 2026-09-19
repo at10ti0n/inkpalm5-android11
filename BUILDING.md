@@ -88,3 +88,16 @@ why each piece is needed.
 
 Design notes for all of these are in `docs/`; start with
 [REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).
+
+## Releasing
+
+The release is published from a staging directory, so **every file in it ships** and
+`SHA256SUMS` is generated from exactly what is present. Before publishing, list the directory
+and confirm each file is intended; afterwards, download the published `SHA256SUMS` and diff it
+against the local one.
+
+`services-powerpress.jar` must never be staged there. It is rolled back and deliberately
+unshipped (see [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md) and §3.18 of the
+third-pass notes) and is reproducible from source with `framework/patch-services.sh`. It was
+staged by mistake on 2026-09-19 and listed in a local `SHA256SUMS` that no longer matched the
+published one; the release itself never contained it.
