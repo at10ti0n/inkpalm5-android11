@@ -6,8 +6,23 @@
 # delayed sleep switches the display off.
 #
 # It carries the same GENERATION token as the sleep callback, and inkpalmShowKeyguard checks
-# it: without that, user activity could cancel the sleep while this queued message still ran
-# and locked the device anyway -- and a superseded request would keep the same side effect.
+# it, so a request cancelled or superseded BEFORE this message runs shows nothing.
+#
+# ACCEPTED SEMANTICS, stated because the guarantee is narrower than it looks: the token is
+# read under mLock and lockNow() is called after releasing it, so keyguard dispatch is
+# COMMITTED AT VALIDATION. Activity arriving after the check but before the call does not
+# stop it. A second check before the call would only narrow that window, not close it, so
+# there is deliberately no second check -- it would suggest a guarantee that does not exist.
+#
+# The two ways to actually close it are both rejected here. Holding mLock across lockNow()
+# reintroduces the lock-order hazard this design exists to avoid. Cancelling at the receiving
+# side means changing the keyguard service, which is far outside this patch.
+#
+# What the accepted behaviour costs: if activity lands in that window, the sleep is still
+# cancelled (that decision is made under the lock in inkpalmFire), so the device stays awake
+# showing the lock screen. On this device the keyguard is not secure, so the cost is a swipe.
+# The stock end state after a timeout is a locked screen too, so this is a smaller difference
+# than it first appears.
 #
 # Why a posted Runnable rather than a direct call: stock PowerManagerService never invokes
 # WindowManagerPolicy at all -- it hands the policy to Notifier, which calls it from its own

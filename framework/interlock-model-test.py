@@ -66,12 +66,21 @@ class Pms:
         self.gen += 1
         self.pending = False
 
+    # Deliberately TWO steps, because the real code is two steps: the token is validated
+    # under mLock, the lock is released, and only then does lockNow() go out over binder.
+    # Modelling them as one operation would hide the window between them, which is exactly
+    # what an earlier revision of this file did.
+    def keyguard_validate(self, token):
+        """Under mLock: decide whether this queued keyguard message is still live."""
+        return self.pending and token == self.gen
+
+    def keyguard_dispatch(self, validated):
+        """After releasing mLock: the outbound call. Nothing can stop it at this point."""
+        if validated:
+            self.keyguard_shown += 1
+
     def run_keyguard(self, token):
-        """The queued InkpalmShowKeyguard. Without the token it would lock the device even
-        after activity cancelled the sleep, or after a newer request superseded this one."""
-        if not self.pending or token != self.gen:
-            return
-        self.keyguard_shown += 1
+        self.keyguard_dispatch(self.keyguard_validate(token))
 
     def fire(self, token):
         if token != self.gen:
@@ -189,6 +198,19 @@ ok &= check("failed scheduling reports the change to its caller, does not recurs
             changed is True and p.slept == [TMO[:4]])
 p2 = Pms(); p2.staged = TMO
 ok &= check("normal arming reports no change", p2._arm_locked() is False)
+
+# 12. The accepted race, asserted rather than hidden. Activity landing AFTER validation but
+#     BEFORE the outbound call does not stop the keyguard: dispatch is committed at
+#     validation. The sleep is still cancelled, so the device stays awake and locked.
+p = Pms(); p.request(TMO); tok = p.posted[0]
+v = p.keyguard_validate(p.keyguard_queue[0])        # passes: still live
+p.user_activity()                                   # lands in the window
+p.keyguard_dispatch(v)
+ok &= check("ACCEPTED: activity after validation does not stop the keyguard",
+            p.keyguard_shown == 1)
+p.fire(tok)
+ok &= check("...but the sleep is still cancelled, so the device stays awake and locked",
+            p.slept == [] and not p.pending)
 
 print("\nall model checks passed" if ok else "\nMODEL CHECKS FAILED")
 raise SystemExit(0 if ok else 1)

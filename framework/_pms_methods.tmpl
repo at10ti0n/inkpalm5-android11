@@ -186,10 +186,12 @@
     throw v1
 .end method
 
-# inkpalm: show the keyguard from the handler thread, but ONLY if this request is still the
-# live one -- otherwise activity that cancelled the sleep, or a request that was superseded,
-# would still leave the device locked. The policy reference is read under the lock (null when
-# stale, so nothing happens) and lockNow() is called AFTER releasing it: it reaches window manager over binder, and
+# inkpalm: show the keyguard from the handler thread, but only if this request is still the
+# live one when CHECKED -- a request cancelled or superseded before this runs shows nothing.
+# Dispatch is committed at that check: activity arriving between it and the call below does
+# not stop the keyguard (see InkpalmShowKeyguard.smali for why there is no second check).
+# The policy reference is read under the lock (null when stale, so nothing happens) and
+# lockNow() is called AFTER releasing it: it reaches window manager over binder, and
 # stock PowerManagerService never invokes WindowManagerPolicy itself -- it hands the policy to
 # Notifier, which calls it from its own thread. Holding mLock across that is a lock-order hazard.
 .method public inkpalmShowKeyguard(I)V

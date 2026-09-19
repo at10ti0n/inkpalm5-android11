@@ -380,6 +380,21 @@ keeps stock's `move-result v0` contract and nothing recurses. `InkpalmShowKeygua
 generation token, and `inkpalmShowKeyguard(int)` reads the policy reference only while the
 request is still pending and current -- a stale one gets null and does nothing.
 
+**Recorded semantic choice: keyguard dispatch is committed at validation.** The token is read
+under `mLock`, the lock is released, and only then does `lockNow()` go out over binder, so
+activity arriving in that window does not stop the keyguard. There is deliberately **no second
+check before the call**: it would narrow the window without closing it, and imply a guarantee
+that does not exist. The two ways to actually close it are both rejected -- holding `mLock`
+across `lockNow()` reinstates the lock-order hazard the design exists to avoid, and cancelling
+at the receiving side means changing the keyguard service, far outside this patch.
+
+What the choice costs: the sleep is still cancelled, because that decision is made under the
+lock in `inkpalmFire`, so the device stays awake showing the lock screen. The keyguard on this
+device is not secure (`isSecure=false` in the watchdog dumps), so the cost is a swipe, and
+stock's end state after a timeout is a locked screen as well. The model test asserts this
+behaviour rather than hiding it: `keyguard_validate` and `keyguard_dispatch` are separate
+steps there for the same reason they are separate in the code.
+
 One more platform rule earned the hard way: **most Dalvik instructions address only v0-v15**,
 so raising an existing method's `.locals` shifts its parameter registers past that limit and
 breaks instructions that were already there. The round-2 build failed to assemble for exactly
