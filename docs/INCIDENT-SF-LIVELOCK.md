@@ -159,12 +159,27 @@ that is mostly asleep is a window in which nothing was spinning.
 10:03                                              system_server watchdog
 ```
 
-**Correction.** An earlier revision read the 08:48 sample as "already spinning". It is not.
-That window is 4 min 44 s long and 1% awake, i.e. roughly 5.5 s of running time, and 73% of
-5.5 s is about 4 s of CPU. More decisively: the device was still reaching suspend at 08:48,
-which a spun-up core makes impossible. So the sustained hang began **after 08:48:39 and before
-10:01:53**, not during the night. The device then could not suspend, and the battery -- it was
-off the charger -- ran down some time after the last report at 10:03.
+**Two corrections, in successive rounds of review.** The first revision read the 08:48 sample
+as "already spinning": wrong. That window is 4 min 44 s long and 1% awake, i.e. roughly 5.5 s of
+running time, so 73% of it is about 4 s of CPU, not five minutes of a pegged core.
+
+The second revision then over-tightened in the other direction, claiming the device was "still
+suspending at 08:48:39" and had "slept normally all night". Neither follows. The awake fraction
+describes the **whole** window, so a spin beginning in its final awake seconds is entirely
+consistent with 1% awake. And there is **no sample at all between 03:06 and 08:44** -- nearly
+six hours with no observation.
+
+What the evidence actually supports:
+
+* A sustained spin was **not running through the bulk of** 02:40-02:51 or 08:44-08:48, because
+  a held core prevents suspend and both windows are 1% awake. It says nothing about the
+  unsampled hours between them, and nothing about the last seconds of either window.
+* Near-full-core usage **is** established for 10:01:53-10:02:04, and the watchdog fired at
+  10:03:38.
+
+So the onset cannot be dated more precisely than: not sustained across most of the 08:44-08:48
+window, and established by 10:01:53. The device then could not suspend, and the battery -- it
+was off the charger -- ran down some time after the last report at 10:03.
 
 The watchdog report gives the blocking chain the first incident could only infer:
 

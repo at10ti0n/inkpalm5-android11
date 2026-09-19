@@ -30,34 +30,50 @@ out=$1
 mkdir -p "$out"
 pid=$(pidof surfaceflinger)
 [ -n "$pid" ] || exit 1
-fails=0
+fails=0; miss=0
 st() {  # st <name> <exit-status>
   echo "$1=$2" >> "$out/exit-status.txt"
   [ "$2" = 0 ] || fails=$((fails + 1))
 }
+# A brace group's exit status is only its LAST command's, so a failed read early in a block
+# would otherwise be invisible. Every read inside the blocks goes through rd(), which marks
+# the gap in the output itself and counts it. These are counted, not fatal: a thread exiting
+# while we walk /proc is normal, and some /proc files do not exist on this 4.9 kernel.
+rd() {
+  if [ -r "$1" ] && cat "$1" 2>/dev/null; then
+    return 0
+  fi
+  echo "<<UNREADABLE: $1>>"
+  miss=$((miss + 1))
+  return 1
+}
 
 {
- date; cat /proc/uptime; echo "surfaceflinger=$pid"
- cat /proc/$pid/status
+ date; rd /proc/uptime; echo "surfaceflinger=$pid"
+ rd /proc/$pid/status
  for t in /proc/$pid/task/*; do
   # one field per line: wchan has no trailing newline, so cat alone runs them together
-  echo "THREAD $t"; cat "$t/comm"; cat "$t/stat"; echo "wchan: $(cat "$t/wchan")"
+  echo "THREAD $t"; rd "$t/comm"; rd "$t/stat"; printf 'wchan: '; rd "$t/wchan"; echo
  done
- cat /sys/kernel/debug/suspend_stats
- cat /sys/kernel/debug/wakeup_sources
+ rd /sys/kernel/debug/suspend_stats
+ rd /sys/kernel/debug/wakeup_sources
 } > "$out/state.txt" 2>&1
 st state $?
+echo "state-unreadable=$miss" >> "$out/exit-status.txt"
 
 {
  date
  for f in /proc/meminfo /proc/vmstat /proc/buddyinfo /proc/pressure/memory /sys/block/zram0/mm_stat /proc/$pid/oom_score /proc/$pid/oom_score_adj; do
   echo "=== $f"
-  [ ! -r "$f" ] || cat "$f"
+  rd "$f"
  done
 } > "$out/memory.txt" 2>&1
 st memory $?
+echo "state+memory-unreadable=$miss" >> "$out/exit-status.txt"
 
 cat /proc/$pid/maps > "$out/sf-maps.txt" 2>&1; st maps $?
+# maps is required to symbolize the profile, so unlike the blocks above it must be non-empty.
+[ -s "$out/sf-maps.txt" ] || st maps-empty 1
 
 timeout 15 simpleperf record -p "$pid" -e cpu-clock:u -f 200 -g --duration 5 -o "$out/perf.data" > "$out/perf-record.txt" 2>&1
 st perf-record $?
@@ -73,6 +89,11 @@ timeout 15 dumpsys SurfaceFlinger > "$out/surfaceflinger.txt" 2>&1; st dumpsys-s
 timeout 30 logcat -b all -d -t 2000 > "$out/logcat.txt" 2>&1; st logcat $?
 timeout 15 dmesg > "$out/kernel.txt" 2>&1; st dmesg $?
 
+# perf.data and the tombstone are the decisive artefacts: a zero-length one is a failure even
+# if the command reported success.
+[ -s "$out/perf.data" ] || st perf-data-empty 1
+[ -s "$out/sf-tombstone.txt" ] || st tombstone-empty 1
+echo "unreadable_reads=$miss" >> "$out/exit-status.txt"
 echo "failed_commands=$fails" >> "$out/exit-status.txt"
 [ "$fails" = 0 ] || exit 4
 exit 0
