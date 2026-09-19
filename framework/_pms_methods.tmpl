@@ -14,25 +14,20 @@
 #   pending timeout + new button   -> SUPERSEDE. The user pressed power; that request's event
 #                                     time and flags are the ones to honour.
 #   pending button  + anything     -> ignore. The explicit request in flight wins.
-.method private inkpalmArm()V
+.method private inkpalmArmLocked()Z
     .registers 8
 
-    iget-object v0, p0, {PMS}->mLock:Ljava/lang/Object;
-
-    monitor-enter v0
-
-    :try_start_0
     iget-boolean v1, p0, {PMS}->mInkpalmPending:Z
 
     if-eqz v1, :cond_arm
 
     iget-boolean v1, p0, {PMS}->mInkpalmReqTimeout:Z
 
-    if-nez v1, :cond_done
+    if-nez v1, :cond_nochange
 
     iget-boolean v1, p0, {PMS}->mInkpalmIsTimeout:Z
 
-    if-eqz v1, :cond_done
+    if-eqz v1, :cond_nochange
 
     :cond_arm
     iget-wide v1, p0, {PMS}->mInkpalmReqTime:J
@@ -69,7 +64,7 @@
 
     new-instance v2, {KEYGUARD}
 
-    invoke-direct {{v2, p0}}, {KEYGUARD}-><init>({PMS})V
+    invoke-direct {{v2, p0, v1}}, {KEYGUARD}-><init>({PMS}I)V
 
     invoke-virtual {{v3, v2}}, Landroid/os/Handler;->post(Ljava/lang/Runnable;)Z
 
@@ -83,7 +78,7 @@
 
     move-result v1
 
-    if-nez v1, :cond_done
+    if-nez v1, :cond_nochange
 
     # The looper refused the message (it is exiting). Leaving mInkpalmPending set would
     # suppress every later sleep, so drop the request and do what stock would have done.
@@ -111,23 +106,16 @@
 
     move-result v1
 
-    if-eqz v1, :cond_done
+    # Return the result rather than calling updatePowerStateLocked here. The timeout caller is
+    # updateWakefulnessLocked, itself running inside updatePowerStateLocked: calling it again
+    # would recurse, and reporting "no change" would hide a sleep that did happen. Returning
+    # the value restores exactly the stock contract at that call site.
+    return v1
 
-    invoke-direct {{p0}}, {PMS}->updatePowerStateLocked()V
+    :cond_nochange
+    const/4 v1, 0x0
 
-    :cond_done
-    monitor-exit v0
-    :try_end_0
-    .catchall {{:try_start_0 .. :try_end_0}} :catchall_0
-
-    return-void
-
-    :catchall_0
-    move-exception v1
-
-    monitor-exit v0
-
-    throw v1
+    return v1
 .end method
 
 # inkpalm: the delayed callback. Token check, eligibility re-check and the sleep all happen in
@@ -198,20 +186,33 @@
     throw v1
 .end method
 
-# inkpalm: show the keyguard from the handler thread. The policy reference is read under the
-# lock and lockNow() is called AFTER releasing it: it reaches window manager over binder, and
+# inkpalm: show the keyguard from the handler thread, but ONLY if this request is still the
+# live one -- otherwise activity that cancelled the sleep, or a request that was superseded,
+# would still leave the device locked. The policy reference is read under the lock (null when
+# stale, so nothing happens) and lockNow() is called AFTER releasing it: it reaches window manager over binder, and
 # stock PowerManagerService never invokes WindowManagerPolicy itself -- it hands the policy to
 # Notifier, which calls it from its own thread. Holding mLock across that is a lock-order hazard.
-.method public inkpalmShowKeyguard()V
-    .registers 4
+.method public inkpalmShowKeyguard(I)V
+    .registers 6
+
+    const/4 v1, 0x0
 
     iget-object v0, p0, {PMS}->mLock:Ljava/lang/Object;
 
     monitor-enter v0
 
     :try_start_0
+    iget-boolean v2, p0, {PMS}->mInkpalmPending:Z
+
+    if-eqz v2, :cond_stale
+
+    iget v2, p0, {PMS}->mInkpalmGen:I
+
+    if-ne v2, p1, :cond_stale
+
     iget-object v1, p0, {PMS}->mPolicy:Lcom/android/server/policy/WindowManagerPolicy;
 
+    :cond_stale
     monitor-exit v0
     :try_end_0
     .catchall {{:try_start_0 .. :try_end_0}} :catchall_0

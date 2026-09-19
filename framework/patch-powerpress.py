@@ -84,23 +84,41 @@ def patch_pms(p):
     # --- goToSleepInternal: recognise the private bit, strip it, stage the request, arm.
     # Only ONE extra local is needed (the bit test); staging uses the parameter registers
     # directly, so nothing is pushed past v15.
-    s, _ = bump_locals(s, 'goToSleepInternal(JIII)V', 1)
+    s, _ = bump_locals(s, 'goToSleepInternal(JIII)V', 2)
     m = re.search(r'\.method private goToSleepInternal\(JIII\)V\n    \.locals (\d+)\n'
                   r'((?:    \.param[^\n]*\n)*)', s)
-    t = 'v%d' % (int(m.group(1)) - 1)
+    n = int(m.group(1))
+    t, lk = 'v%d' % (n - 2), 'v%d' % (n - 1)
+    # Staging and promotion must happen in ONE acquisition of mLock. Writing the request
+    # fields before taking the lock lets a concurrent request overwrite them -- or interleave
+    # with them field by field, mixing one request's event time with another's flags.
     inject = (f'\n    const/high16 {t}, -{FLAG}\n\n'
               f'    and-int/2addr {t}, p4\n\n'
               f'    if-eqz {t}, :cond_inkpalm_normal\n\n'
               f'    const {t}, 0x7fffffff\n\n'
               f'    and-int/2addr p4, {t}\n\n'
+              f'    iget-object {lk}, p0, {PMS}->mLock:Ljava/lang/Object;\n\n'
+              f'    monitor-enter {lk}\n\n'
+              f'    :try_start_inkpalm\n'
               f'    const/4 {t}, 0x0\n\n'
               f'    iput-boolean {t}, p0, {PMS}->mInkpalmReqTimeout:Z\n\n'
               f'    iput-wide p1, p0, {PMS}->mInkpalmReqTime:J\n\n'
               f'    iput p3, p0, {PMS}->mInkpalmReqReason:I\n\n'
               f'    iput p4, p0, {PMS}->mInkpalmReqFlags:I\n\n'
               f'    iput p5, p0, {PMS}->mInkpalmReqUid:I\n\n'
-              f'    invoke-direct {{p0}}, {PMS}->inkpalmArm()V\n\n'
+              f'    invoke-direct {{p0}}, {PMS}->inkpalmArmLocked()Z\n\n'
+              f'    move-result {t}\n\n'
+              f'    if-eqz {t}, :cond_inkpalm_nochange\n\n'
+              f'    invoke-direct {{p0}}, {PMS}->updatePowerStateLocked()V\n\n'
+              f'    :cond_inkpalm_nochange\n'
+              f'    monitor-exit {lk}\n'
+              f'    :try_end_inkpalm\n'
+              f'    .catchall {{:try_start_inkpalm .. :try_end_inkpalm}} :catchall_inkpalm\n\n'
               f'    return-void\n\n'
+              f'    :catchall_inkpalm\n'
+              f'    move-exception {t}\n\n'
+              f'    monitor-exit {lk}\n\n'
+              f'    throw {t}\n\n'
               f'    :cond_inkpalm_normal\n')
     s = s[:m.end()] + inject + s[m.end():]
 
@@ -118,14 +136,18 @@ def patch_pms(p):
         sys.exit('updateWakefulnessLocked: expected 2 goToSleepNoUpdateLocked calls, got %d'
                  % body.count(old))
     idx = body.rindex(old)          # the second is the ordinary bedtime path
+    # This caller already holds mLock (the method is *Locked), so staging and promotion are
+    # in one acquisition here too. inkpalmArmLocked returns the same "changed" boolean the
+    # original call produced, so the enclosing updatePowerStateLocked loop behaves as in
+    # stock -- no recursive update, and a fallback sleep is not reported as "no change".
     new = (f'    const/4 v0, 0x1\n\n'
            f'    iput-boolean v0, p0, {PMS}->mInkpalmReqTimeout:Z\n\n'
            f'    iput-wide v8, p0, {PMS}->mInkpalmReqTime:J\n\n'
            f'    iput v5, p0, {PMS}->mInkpalmReqReason:I\n\n'
            f'    iput v6, p0, {PMS}->mInkpalmReqFlags:I\n\n'
            f'    iput v7, p0, {PMS}->mInkpalmReqUid:I\n\n'
-           f'    invoke-direct {{p0}}, {PMS}->inkpalmArm()V\n\n'
-           '    const/4 v0, 0x0\n')
+           f'    invoke-direct {{p0}}, {PMS}->inkpalmArmLocked()Z\n\n'
+           '    move-result v0\n')
     body = body[:idx] + new + body[idx + len(old):]
     s = s[:m.start()] + body + s[m.end():]
 

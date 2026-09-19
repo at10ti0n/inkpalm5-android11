@@ -357,12 +357,28 @@ generation token, which fixed the above -- but five more:
   was ignored. Repeated timeout checks *should* coalesce, but a power-button press during a
   pending timeout needs a stated policy.
 
-**Round 3 (in the repo, built, still not installed).** Keyguard shown from a posted Runnable,
-never under the lock; the request's event time, reason, flags and uid stored and replayed;
-a timeout re-checked for bedtime when it fires, a button request unconditional as in stock;
-`postDelayed` failure clears the pending flag and falls back to the stock inline sleep; and an
-explicit coalescing policy -- timeout+timeout coalesces, button supersedes a pending timeout,
-anything during a pending button coalesces.
+**Round 3 (rejected).** Keyguard posted instead of called under the lock; request stored and
+replayed; timeout re-checked for bedtime; `postDelayed` failure handled; coalescing policy
+stated. Three defects remained:
+
+* **The staging race.** The button path wrote the shared `mInkpalmReq*` fields *before*
+  acquiring `mLock`, so a second request could overwrite them before `inkpalmArm` read them --
+  or interleave field by field, pairing one request's event time with another's flags.
+* **The keyguard Runnable carried no token.** User activity could cancel the sleep while the
+  queued message still ran and locked the device; a superseded request kept the same side
+  effect.
+* **Recursive power-state update.** On a scheduling failure the fallback called
+  `updatePowerStateLocked()` from inside `updateWakefulnessLocked`, which itself runs inside
+  `updatePowerStateLocked`, and the patched call site then reported "no change" even though a
+  sleep had happened.
+
+**Round 4 (in the repo, built, still not installed).** Staging and promotion now share one
+acquisition of `mLock`: the button path takes the lock, stages, calls `inkpalmArmLocked()` and
+releases it, and the timeout path already held it. `inkpalmArmLocked` takes no monitor of its
+own and **returns** whether an inline fallback changed wakefulness, so the timeout call site
+keeps stock's `move-result v0` contract and nothing recurses. `InkpalmShowKeyguard` carries the
+generation token, and `inkpalmShowKeyguard(int)` reads the policy reference only while the
+request is still pending and current -- a stale one gets null and does nothing.
 
 One more platform rule earned the hard way: **most Dalvik instructions address only v0-v15**,
 so raising an existing method's `.locals` shifts its parameter registers past that limit and
