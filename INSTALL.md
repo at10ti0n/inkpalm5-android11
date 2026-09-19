@@ -103,8 +103,8 @@ bash install/from-android.sh ~/inkpalm-assets
 ```
 
 Installs the key layouts and touch config, adds the four Quick Settings tiles, applies the
-native configuration (locked portrait, static standby image, 2-minute timeout, Bluetooth
-and scanning off), and reboots.
+native configuration (locked portrait, lock-screen image, 2-minute timeout, Bluetooth and
+scanning off), and reboots.
 
 **When it comes back you are done.** Portrait, touch aligned, brightness slider working.
 
@@ -197,13 +197,20 @@ is still caught.
   The proper fix is kernel-side (mask the touch IRQ during panel refresh) and is not
   available on the stock binary kernel. `settings put secure doze_always_on 1` turns the
   clock back on if you want it; see [docs/SUSPEND-DIAGNOSIS.md](docs/SUSPEND-DIAGNOSIS.md).
-  Instead the device sleeps on a **static standby image** (the lock-screen wallpaper, like
-  stock; the patched SystemUI from step 7 hides the clock, and the patched framework from
-  the same step shows the lock screen *before* the display goes off, on a power press and
-  on the idle timeout alike -- without that, the E Ink panel keeps whatever app was open): the panel holds it with zero redraws. To change it, put
-  any 720x1280 image at `docs/images/standby.png` and re-run `install/from-android.sh`.
+  With the clock off, the display simply goes off, and **the E Ink panel keeps whatever was
+  on screen** -- usually the app you were reading. That is not a panel fault: Android draws
+  the lock screen and switches the display off at the same moment, and screen-off does not
+  wait for windows to be drawn, so on E Ink the app frame wins the race.
 
-* **The Screen Temperature slider and the standby screen are tied to GSI v313.** They live inside SystemUI and the framework (`services.jar`), and a
+  The installer does set a lock-screen image (`docs/images/standby.png`; replace it with any
+  720x1280 image and re-run), and the patched SystemUI hides the lock-screen clock, so that
+  is what you see **when you wake the device**. Making it the *sleep* screen as well needs a
+  framework patch (`framework/patch-services.sh`) that is **deliberately not shipped**: it
+  adds surface creation to every display transition while a SurfaceFlinger hang is under
+  investigation, and it has a known defect of its own. See
+  [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md).
+
+* **The Screen Temperature slider and the clock-free lock screen are tied to GSI v313.** They live inside SystemUI, and a
   patched SystemUI only matches the exact GSI build it was built from, so step 7 installs it
   **only** if the SystemUI on your device is byte-for-byte that build — any other GSI is left
   untouched and the step says so. Everything else, brightness included, works on any GSI;
