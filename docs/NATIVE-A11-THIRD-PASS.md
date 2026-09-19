@@ -328,46 +328,54 @@ the first incident only shows it is not *necessary* for the failure, not that it
 Second, and independent of all that: the 800 ms callback goes to sleep unconditionally. It
 never rechecks whether the user touched the screen inside that window, so a touch arriving
 between the keyguard appearing and the sleep firing is ignored and the device sleeps anyway.
-Both paths had this defect. A first fix was built on 2026-09-19 and **rejected in review before
-installation** -- it is worth recording why, because four of its five defects were orderings that
-assembling cleanly says nothing about:
+Both paths had this defect. Three review rounds have now rejected a fix before installation;
+the defects are recorded because most of them are orderings or platform rules that a clean
+build says nothing about.
 
-* **Invalid cross-package access.** It put shared statics and helpers on a class in
-  `com.android.server.policy` and read them from `com.android.server.power`. Package-private
-  access does not cross packages because two classes ship in one jar; it would have thrown
-  `IllegalAccessError` at runtime. Confirmed in the dex: the members carried access flags
-  `0x48`/`0x08`, no `public`.
-* **A new arm could revive an old callback.** Arm A, user activity, arm B: A's callback then
-  compared itself against B's fresh timestamp and slept.
-* **The timeout path armed too late**, when a queued stage ran, so activity between scheduling
-  and execution was invisible.
-* **Check and sleep were not atomic.** Activity could land after the check returned "not
-  cancelled" and before the sleep. `volatile` does not close that.
-* **Activity timestamps could regress**, because the write was inserted before the original
-  method's own validation.
+**Round 1 (rejected).** Shared statics on a class in `com.android.server.policy`, read from
+`com.android.server.power`: package-private access does not cross packages because two classes
+ship in one jar, so it would have thrown `IllegalAccessError`. Confirmed in the dex, flags
+`0x48`/`0x08`. Also: a second arm could revive the first callback; the timeout path armed when
+a queued stage ran rather than when the decision was made; check and sleep were not atomic; and
+the activity write sat before the original method's own validation, so it could regress.
 
-The **second design** (in the repo, built, still not installed) keeps everything in
-`PowerManagerService`:
+**Round 2 (rejected).** All state moved into `PowerManagerService` and each request got a
+generation token, which fixed the above -- but five more:
 
-* `PhoneWindowManager` gains no new member at all. It sets one private bit in the flags it
-  already passes to `goToSleepFromPowerButton`, which forwards them to `PowerManager.goToSleep`;
-  `goToSleepInternal` recognises the bit, strips it, and arms instead of sleeping. No new API,
-  no `framework.jar` change, and nothing crosses a package boundary.
-* Each request carries a **generation token**. Arming bumps the generation, so a superseded
-  callback cannot act; accepted user activity bumps it too, at the two points where the original
-  method *records* the activity, i.e. after its own validation.
-* `inkpalmFire` compares the token **and** sleeps inside one acquisition of `mLock`, so nothing
-  can interleave between the decision and the sleep.
-* A pending flag stops the timeout path re-arming on every update.
-* Arming happens where the decision to sleep is made, not in a queued stage.
+* `inkpalmFire` checked the token and nothing else. A **timeout** request must be re-checked
+  against `isItBedTimeYetLocked()`, because a wake lock taken during the delay, or a changed
+  screen-off timeout, generates no user activity at all.
+* The request's **event time and flags were discarded**, and the callback substituted "now"
+  and zero. That silently changes which requests `goToSleepNoUpdateLocked` rejects as stale.
+* `mPolicy.lockNow()` ran **under `mLock`**, including from `updateWakefulnessLocked`. Stock
+  never invokes `WindowManagerPolicy` from this service -- it hands the policy to `Notifier`,
+  which calls from its own thread -- and `lockNow` reaches the keyguard over binder. A lock-order
+  hazard, and one a model test cannot see.
+* `postDelayed`'s **result was ignored**. A refused message would leave the pending flag set and
+  suppress every later sleep.
+* "A new request supersedes the old" was claimed but not implemented: while pending, everything
+  was ignored. Repeated timeout checks *should* coalesce, but a power-button press during a
+  pending timeout needs a stated policy.
 
-Verified structurally in the rebuilt dex: no `Inkpalm` class left in the policy package, the
-runnable sitting in `com.android.server.power` alongside the service whose package-private
-method it calls, zero `inkpalm` references from `PhoneWindowManager`, the interception in
-`goToSleepInternal`, the arm in the timeout path, and both invalidation calls inside
-`userActivityNoUpdateLocked`. `framework/interlock-model-test.py` models the orderings --
-including the revival case -- and passes.
+**Round 3 (in the repo, built, still not installed).** Keyguard shown from a posted Runnable,
+never under the lock; the request's event time, reason, flags and uid stored and replayed;
+a timeout re-checked for bedtime when it fires, a button request unconditional as in stock;
+`postDelayed` failure clears the pending flag and falls back to the stock inline sleep; and an
+explicit coalescing policy -- timeout+timeout coalesces, button supersedes a pending timeout,
+anything during a pending button coalesces.
 
-**None of that is a behavioural test.** It cannot catch a verifier rejection or a wrong
-insertion point, and the patch stays uninstalled while the SurfaceFlinger hang is under
-observation.
+One more platform rule earned the hard way: **most Dalvik instructions address only v0-v15**,
+so raising an existing method's `.locals` shifts its parameter registers past that limit and
+breaks instructions that were already there. The round-2 build failed to assemble for exactly
+that reason. The call sites now stage the request into fields using registers they already
+hold and call a **no-argument** `inkpalmArm()`.
+
+Verified structurally in the rebuilt dex: `monitor-exit` precedes `lockNow` in
+`inkpalmShowKeyguard`; `isItBedTimeYetLocked` present in `inkpalmFire` along with four reads of
+the stored request; `postDelayed` result tested with an inline fallback; staging written at both
+call sites; no `lockNow` inside arm or fire; zero `inkpalm` references from `PhoneWindowManager`.
+`framework/interlock-model-test.py` covers the orderings, the coalescing policy, the eligibility
+re-check and the scheduling failure: 16 checks, all passing.
+
+**None of that is a behavioural test**, and the model explicitly cannot see register allocation
+or lock ordering. The patch stays uninstalled while the SurfaceFlinger hang is under observation.

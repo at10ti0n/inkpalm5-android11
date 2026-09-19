@@ -30,7 +30,7 @@ PMS=$(find "$W/src" -name PowerManagerService.smali | head -1)
 [ -n "$PWM" ] && [ -n "$PMS" ] || { echo "PhoneWindowManager/PowerManagerService smali not found" >&2; exit 1; }
 
 say "applying the patch (power press + idle timeout)"
-cp "$HERE/InkpalmDelayedSleep.smali" "$(dirname "$PMS")/InkpalmDelayedSleep.smali"
+cp "$HERE/InkpalmDelayedSleep.smali" "$HERE/InkpalmShowKeyguard.smali" "$(dirname "$PMS")/"
 python3 "$HERE/patch-powerpress.py" "$PWM" "$PMS"
 
 say "rebuilding"
