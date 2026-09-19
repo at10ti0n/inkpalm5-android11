@@ -84,7 +84,7 @@ why each piece is needed.
 | `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
 | `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, warmth, portrait/landscape (v4) |
 | `SystemUI-warmth.apk` | patched SystemUI: Screen Temperature slider, lock-screen clock hidden (GSI-specific) |
-| `services-powerpress.jar` | patched framework: power press and idle timeout show the lock screen, then sleep 800 ms later (GSI-specific) |
+| `services-powerpress.jar` | patched framework: power press and idle timeout show the lock screen, then sleep 800 ms later (GSI-specific). **Not shipped and rolled back on the author's device** pending the SurfaceFlinger investigation -- it adds surface creation to the path implicated in [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). Without it the panel keeps the last app frame through sleep. |
 
 Design notes for all of these are in `docs/`; start with
 [REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).

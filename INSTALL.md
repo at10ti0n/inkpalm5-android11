@@ -216,8 +216,8 @@ is still caught.
   its last image and the device looks switched off; because it cannot suspend, it flattens the
   battery. Recovery is a 20-second power-button hold. Diagnosed but not fixed, see
   [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). A detector
-  (`tools/sf-watch.sh`) is installed and runs at every boot: if it happens to you, send
-  `/data/local/sf-watch.log` and `/data/local/sf-hang-stacks.txt`.
+  (`tools/sf-watch.sh`) is installed and runs at every boot: if it happens to you, send the
+  contents of `/data/local/sf-hang/`.
 * **Landscape for a moment at every boot**, before the rotation lock applies.
 * **Battery life is not characterised yet.** Suspend works; long-term numbers are pending.
 * **Untested:** audio (no speaker on this device), Bluetooth (declared, kept off).

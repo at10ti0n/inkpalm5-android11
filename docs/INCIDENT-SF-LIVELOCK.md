@@ -171,7 +171,21 @@ Binder:2298_D   WindowState.removeIfPossible -> ... -> SurfaceAnimator.createAni
 So: SF spins on one core, a `createSurface` binder call into it never returns, the caller
 holds the window-manager lock, its caller holds the AMS lock, and the whole system wedges
 behind those two locks. One core pegged means no suspend, which is what flattens the battery
-overnight. Consistent with incident 1 in every respect.
+overnight.
+
+**What this does NOT establish (correction after review).** All of the above is about the
+*callers*. There is no stack for SurfaceFlinger's own spinning thread and no CPU sample from
+inside SF for this incident, because nothing was capturing at the time. Whether it is the same
+internal failure as incident 1 -- the app `EventThread` -- is an **inference from the external
+symptoms, not a finding**. An earlier revision of this document called it "consistent with
+incident 1 in every respect"; that was an overstatement and is withdrawn.
+
+Incident 1's own evidence is thinner than it first appeared, too. Its sampled PC `0x1505e8`
+lands in the ARM PLT, not in a loop body: the slot resolves to `android::RefBase::decStrong`,
+which the EventThread lambda calls from several places (promotion cleanup, consumer-vector
+cleanup, destruction). A single sampled PC there cannot distinguish which caller is looping,
+and the old capture has no usable caller stack for the hot thread, so it does not directly
+prove mutex ownership either. See `a11/sf-hang-fix/INVESTIGATION.md` on the project side.
 
 ## What is different, and what that does and does not tell us
 
@@ -184,20 +198,49 @@ screen-off show the keyguard first (§3.17). That patch adds keyguard window and
 creation to a transition that previously created nothing, on exactly the code path that is
 stuck here (`createAnimationLeash` -> `createSurface`). It cannot be blamed on the evidence
 available -- the identical hang predates it by two days -- but it cannot be cleared either,
-and it plausibly increases exposure. Two prior data points in two months is not a rate that
+and it plausibly increases exposure. Two data points in two months is not a rate that
 distinguishes the two hypotheses.
 
-## The detector (`tools/sf-watch.sh`)
+Note the asymmetry in what each observation buys: the patch being absent during incident 1
+shows it is **not necessary** for the failure, not that it is harmless. AOD being off during
+incident 2 likewise only removes AOD as a *necessary* condition; it does not clear
+display-transition bugs generally. **Decision: the patch is rolled back for everyday use**
+(stock `services.jar` and its odex restored, verified 2026-09-19), while the corrected
+instrumentation stays. It can be reinstated deliberately once there is a capture to reason
+about.
 
-Both hangs were found hours late with the logs already gone. `tools/sf-watch.sh` samples
-SurfaceFlinger's own `utime+stime` from `/proc/<pid>/stat` once a minute and writes a line
-only when it exceeds 20 ticks per 60 s, so the log stays small; on first detection it dumps
-all SF threads with `debuggerd -b` to `/data/local/sf-hang-stacks.txt`. It holds no wakelock,
-so it cannot keep the device awake, and while suspended it simply does not tick. Started from
-`configs/a11-boot-fixups.sh` at every boot.
+## The instrumentation (`tools/sf-watch.sh` + `tools/sf-capture.sh`)
 
-Verified 2026-09-19: healthy idle reads 3-4 ticks/60 s, and the stack capture produces a
-25 KB dump with all 19 SF threads symbolized -- which is precisely the artefact missing from
-both incidents. One shell-portability trap is worth noting because it made the first version
-silently useless: in this shell `$14` expands as `$1` followed by `4`, so the sampler read the
-pid instead of the CPU counters and the delta was always zero. Use `${14}`.
+Both hangs were found hours late with the evidence already gone, which is why neither has a
+stack for the spinning thread. `tools/sf-watch.sh` samples **every** SF thread every 15 s and
+triggers when one exceeds **80% of a core for three consecutive intervals**; `sf-capture.sh`
+(the project's existing capture script) then collects, in this order: per-thread `stat`/`wchan`,
+memory and reclaim state, `/proc/<pid>/maps`, **5 s of `simpleperf cpu-clock:u` before**
+`debuggerd` pauses anything, then the bounded `dumpsys` calls, then a full tombstone with
+registers. The ordering matters: a hot loop yields precise PCs to the sampler, whereas a single
+backtrace sample is what left incident 1 unresolved; and `dumpsys` talks to system_server, which
+during this failure is itself blocked, so it comes last and every call has a timeout.
+
+Each incident gets its own directory under `/data/local/sf-hang/`, with a 30-minute cooldown
+and the six most recent kept. No wakelock and no wake alarm, so it cannot keep the device
+awake; while suspended it simply does not tick. Started from `configs/a11-boot-fixups.sh`.
+
+A first version of this watcher was written and reviewed before deployment; the review found
+four defects worth recording, since three are easy to repeat:
+
+* **The threshold was nonsense.** 20 ticks per 60 s at `HZ=100` is 0.33% of a core, not 20%.
+  Ordinary activity would have tripped it. (Its own log line printed "0% of a core" and that
+  went unnoticed.)
+* **It called `dumpsys power` twice, unbounded, before capturing** -- on the one service that
+  is wedged during this failure, which would have stalled the capture indefinitely.
+* **It captured at most once, ever**, gated on a file that a healthy sample or an earlier boot
+  could have created.
+* **It assumed every interval was exactly 60 s and never reset on a pid change.**
+
+And one that made it useless outright: in this shell `$14` expands as `$1` followed by `4`, so
+the sampler read the pid, the delta was always zero, and it could never have fired. Use `${14}`.
+
+Verified on the device 2026-09-19: simpleperf on a deliberately spinning process gave 603
+samples, 0 lost, symbolized; the watcher measured 94-103% of a core for that thread, triggered
+after the configured intervals, ran the capture and kept watching; a healthy baseline capture
+took 10 s and produced a tombstone with registers for all 19 SF threads.
