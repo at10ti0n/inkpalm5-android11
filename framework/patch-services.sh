@@ -30,14 +30,13 @@ PMS=$(find "$W/src" -name PowerManagerService.smali | head -1)
 [ -n "$PWM" ] && [ -n "$PMS" ] || { echo "PhoneWindowManager/PowerManagerService smali not found" >&2; exit 1; }
 
 say "applying the patch (power press + idle timeout)"
-cp "$HERE/InkpalmSleep.smali" "$(dirname "$PWM")/InkpalmSleep.smali"
-cp "$HERE/InkpalmTimeoutSleep.smali" "$(dirname "$PMS")/InkpalmTimeoutSleep.smali"
+cp "$HERE/InkpalmDelayedSleep.smali" "$(dirname "$PMS")/InkpalmDelayedSleep.smali"
 python3 "$HERE/patch-powerpress.py" "$PWM" "$PMS"
 
 say "rebuilding"
 apktool b -f "$W/src" -o "$OUT" >/dev/null
 # (dexdump's output goes to a file: grep -q closing the pipe early would trip pipefail)
-( cd "$W" && unzip -q -o "$OUT" classes.dex && "$BT/dexdump" -d classes.dex > dump.txt 2>/dev/null && grep -q "PhoneWindowManager;.inkpalmSleepNow" dump.txt && grep -q "PowerManagerService;.inkpalmSleepNow" dump.txt ) \
+( cd "$W" && unzip -q -o "$OUT" classes.dex && "$BT/dexdump" -d classes.dex > dump.txt 2>/dev/null && grep -q "PowerManagerService;.inkpalmFire" dump.txt && grep -q "PowerManagerService;.inkpalmArm" dump.txt ) \
   || { echo "self-check failed: patched method not in classes.dex" >&2; exit 1; }
 echo
 echo "wrote $OUT  (sha256 $(shasum -a256 "$OUT" | cut -c1-16))"

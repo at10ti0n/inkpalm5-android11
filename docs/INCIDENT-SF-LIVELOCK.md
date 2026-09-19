@@ -330,10 +330,16 @@ earlier in this project came back with 75 stray CR bytes). Take the **whole** di
 `sf-watch.log` included -- it names the thread that tripped the threshold and when the
 **threshold** was met, which the capture itself does not record.
 
-Be precise about what that timestamp is: the watcher fires after one thread has held 80% of a
-core across three consecutive 15 s samples, so the logged time is **up to ~45 s after the spin
-began, and only for a spin that is sustained**. It is an upper bound on onset, not the onset.
-A brief burst that clears before the third sample is never logged at all.
+Be precise about what that timestamp is: it is the **detection time**, not the onset. The
+watcher fires only after one thread has held 80% of a core across three consecutive samples,
+so it is necessarily later than the spin began, and only exists for a spin that is sustained --
+a burst that clears before the third sample is never logged at all.
+
+The lag is **not bounded by 3 x 15 s**. Sampling is not aligned to the onset, each pass takes
+time on top of the sleep, the scheduler can delay a low-priority shell loop on a busy machine,
+and suspend stops the loop entirely, so a spin beginning just before a suspend is not seen
+until the device resumes. Treat the logged time as "no later than this", with no useful lower
+bound.
 
 The four files that decide the case:
 
