@@ -454,3 +454,77 @@ order. Set `RECOVER=0` to keep a hung process for live debugging.
 The trade is honest: this is a soft framework restart, so foreground app state is lost. The
 alternative, observed twice, is a device that never draws again and needs a 20-second power hold.
 It is a mitigation, not a cure -- the compositor bug is untouched.
+
+
+---
+
+# Why the livelock's regime existed at all, and the fix that removes it (2026-09-21)
+
+Everything above happened inside one condition: the app `EventThread` running permanently in
+**synthetic-vsync mode**, ticking on its own hardcoded 16 ms timer, with SurfaceFlinger's vsync
+reactor stuck "transitioning" to the panel's period and never getting there. That condition was
+not a bug in the compositor; it was the seam of this port.
+
+## Measured chain
+
+1. **The kernel never emits vsync on the E Ink path.** The vendor composer does everything right on
+   its side: it issues `DISP_VSYNC_EVENT_EN` on `/dev/disp` (request `0xb`, returns 0) and has a
+   uevent thread parked in `epoll_wait` for `VSYNC` events. But `ueventd`, which receives every
+   kernel event, saw one unrelated event in 24 s while four frames went to the panel with vsync
+   enabled. Electronic paper has no periodic refresh to report.
+2. **So SurfaceFlinger reports `No Last HW vsync`, forever.** Android 11's `VSyncReactor` confirms a
+   period change only from hardware samples (`periodConfirmed`, 10% allowance), ignoring present
+   fences while a transition is pending. With no samples it sat at `mPeriodConfirmationInProgress=1`,
+   `mPeriodTransitioningTo=62500000`, predictor on its 16.67 ms placeholder, fences ignored, and the
+   app EventThread `synthetic` even with the screen on.
+3. **The legacy model is no escape.** `debug.sf.vsync_reactor=false` was tried: the legacy
+   `DispSync` also gates period adoption on a resync sample, so its period stayed **0** across a
+   screen transition. Reverted.
+4. **Our shim was not the cause.** It intercepts only the panel update ioctl. It did, however, carry
+   a defect found in the same traces: its cache-sync call on the shadow buffers failed with `EINVAL`
+   on every frame. Fixed in the same revision by allocating the shadows uncached.
+
+## The fix: generate the vsync the panel cannot
+
+`a11boot/libhwcflip.c` now also hooks `hw_get_module()` in the composer process, wraps the HWC2
+device's `getFunction()`, captures the vsync callback the composer HAL registers, and drives it from
+a timer thread at the panel period (`persist.display.default_vsync_freq`, 16 Hz here) whenever
+vsync is enabled. The vendor's own `setVsyncEnabled` is still forwarded, so its kernel-side
+behaviour is unchanged. Kill switch `vendor.hwcflip.vsync=0`; period override
+`vendor.hwcflip.vsync_hz`.
+
+**Verified on the device, then again from a cold boot:**
+
+```
+before                                     after
+mPeriodConfirmationInProgress=1            mPeriodConfirmationInProgress=0
+mPeriodTransitioningTo=62500000            mPeriodTransitioningTo=nullptr
+mIdealPeriod=16.67                         mIdealPeriod=62.50
+app: mPeriod=16.67  sf: mPeriod=16.67      app: mPeriod=62.50  sf: mPeriod=62.50
+app: state=Idle ... synthetic              app: state=Idle ...            (screen on)
+```
+
+SurfaceFlinger behaves exactly as designed once samples arrive: it confirms the period within two
+callbacks, takes the samples its predictor wants, then switches hardware vsync **off** (the
+generator stops); on every screen-on it re-enables, re-confirms, and switches off again.
+SurfaceFlinger idles at 0 CPU ticks; rendering, touch and the frame mirror are unaffected; the
+livelock watcher stays quiet.
+
+## Two mistakes on the way, recorded because both were invisible until measured
+
+* The first build crashed the composer in a restart loop: a `%s` format given an integer in one
+  log line. Structure fine, one character wrong. A deploy script with automatic rollback exists now.
+* This vendor pair does **not** use the HWC2 enum for `setVsyncEnabled`. Aligned on one clock,
+  SurfaceFlinger's "Setting power mode 2" (ON) is followed 4 ms later by the value **2**, and
+  "power mode 0" (OFF) by **0**; SurfaceFlinger's own state-change trace markers coincide with
+  exactly those calls; and the vendor HWC logs its standard enable code when forwarded 2. So here
+  2 = enable, 0 = disable, and 1 never appears. My first reading was inverted, so the generator ran
+  only while the screen was off, when SurfaceFlinger drops every sample. `vendor.hwcflip.vsync_encoding=hwc2`
+  selects the standard encoding for a HAL that uses it.
+
+## What this does and does not claim
+
+It removes the regime the livelock lived in and makes the scheduler coherent with the panel.
+It does **not** prove the livelock cannot recur: the exact predicate that kept the scan loop out
+of its wait was never resolved (see above), and only time under the new regime will tell. The
+watcher and its automatic recovery therefore stay in place.

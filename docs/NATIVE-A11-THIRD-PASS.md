@@ -410,3 +410,16 @@ re-check and the scheduling failure: 16 checks, all passing.
 
 **None of that is a behavioural test**, and the model explicitly cannot see register allocation
 or lock ordering. The patch stays uninstalled while the SurfaceFlinger hang is under observation.
+
+## 3.19 Software vsync: the composer now delivers what Android 11's scheduler requires
+MEASURED: the kernel emits no vsync on the E Ink path (vendor HWC enables it, uevent thread waits,
+`ueventd` sees nothing), so SurfaceFlinger never received a hardware vsync and its `VSyncReactor`
+could never confirm the panel's 62.5 ms period -- predictor stuck at 16.67 ms, app EventThread
+permanently synthetic. That is the seam this port sits on: stock 8.1 tolerated a vsync-less panel,
+Android 11 does not. `libhwcflip.so` now hooks `hw_get_module` in the composer process, captures the
+HAL's registered vsync callback and drives it at the panel period while enabled. Verified live and
+from a cold boot: transition complete, ideal period 62.50, listeners 62.50, synthetic flag gone with
+the screen on, SurfaceFlinger disabling hardware vsync once satisfied and re-confirming on every
+screen-on. Details, the vendor's 2/0 enable encoding, and the two mistakes on the way are in
+`docs/INCIDENT-SF-LIVELOCK.md`. Build: `a11boot/build-hwcflip.sh` against the vendored AOSP headers
+in `a11boot/include/`. Same revision fixes the shim's failing cache sync (shadows now uncached).

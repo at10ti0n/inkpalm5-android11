@@ -30,7 +30,7 @@ The native pieces need the Android NDK (r2x) and, for the APKs, build-tools 34 +
 
 ```
 NDK=.../toolchains/llvm/prebuilt/<host>/bin
-$NDK/armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wl,-z,now -o libhwcflip.so   a11boot/libhwcflip.c -ldl
+NDK=$NDK bash a11boot/build-hwcflip.sh build/libhwcflip.so   # HWC2 headers are vendored in a11boot/include/
 $NDK/armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wl,-z,now -o lights.virgo.so frontlight/lights_epd105.c -llog
 MODE_TEXT=2 MODE_GRAPHICS=132 bash einktile/build.sh     # -> einktile/build/einktile.apk
 bash overlays/aod/build.sh                               # -> overlays/aod/build/inkpalm-aod.apk

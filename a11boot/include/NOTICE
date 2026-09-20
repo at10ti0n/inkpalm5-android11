@@ -1,0 +1,6 @@
+These headers are copied unmodified from the Android Open Source Project, branch
+android11-release (platform/hardware/libhardware include/hardware/*.h; platform/system/core
+libcutils/include/cutils/native_handle.h and libsystem/include/system/graphics*.h), and are
+licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+They are here only so that a11boot/libhwcflip.c compiles against the exact HWC2 ABI the Android 11
+composer HAL uses; the NDK does not ship them.

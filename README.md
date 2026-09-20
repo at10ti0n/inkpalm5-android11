@@ -98,6 +98,7 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
 | 14 | Framework `exec` in the 8.1 init | Temporary `exec` children never ran (Gate 1F a6) | Declared oneshot/long-running services only | -- |
 | 15 | Telephony | Vendor declares GSM/IMS it has no hardware for | PHH no-RIL; phone process idle | Vendor manifest without telephony |
 | 16 | ~~Screenshots of DRM readers~~ | **Corrected 2026-09-18:** Kindle's reader is *not* a secure surface here -- `screencap` captures the page normally (the reader screenshot above is a straight `screencap`). The earlier "shows white" note was wrong | -- | -- |
+| 17 | Hardware vsync | The kernel emits none on the E Ink path, so SurfaceFlinger never gets a sample; Android 11's reactor cannot confirm the panel period and the app EventThread stays in synthetic mode on a 16 ms timer -- the regime the SurfaceFlinger livelock lived in | `libhwcflip.so` generates the vsync callback at the panel period while SurfaceFlinger asks for it (measured: period confirmed at 62.5 ms, synthetic mode gone) | A composer that reports vsync, or a kernel that emits it |
 
 ## Layout
     twrp/       mktwrp.py + twrp-epd105-ramdisk.cpio.gz + libepdfix.c + overlay patch

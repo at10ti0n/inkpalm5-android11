@@ -223,7 +223,11 @@ is still caught.
   its last image and the device looks switched off; because it cannot suspend, it flattens the
   battery. Recovery is a 20-second power-button hold. Diagnosed but not fixed, see
   [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). A detector
-  (`tools/sf-watch.sh`) is installed and runs at every boot. Since 2026-09-21 it also
+  (`tools/sf-watch.sh`) is installed and runs at every boot. The condition the freeze lived in --
+  SurfaceFlinger never receiving a vsync, because the E Ink kernel path emits none -- is fixed as of
+  2026-09-21 by the new `libhwcflip.so`, which generates the vsync callback itself (see
+  [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md)). Whether the freeze can still occur
+  under the corrected scheduler is not yet known, so the watcher stays, and since 2026-09-21 it also
   **recovers automatically**: after saving the evidence it restarts SurfaceFlinger, which clears
   the hang without a reboot (measured on a live three-hour hang). You lose whatever app was in
   the foreground, which beats a device that will not draw again. If it happens to you, send the
