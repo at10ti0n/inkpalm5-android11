@@ -223,7 +223,10 @@ is still caught.
   its last image and the device looks switched off; because it cannot suspend, it flattens the
   battery. Recovery is a 20-second power-button hold. Diagnosed but not fixed, see
   [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). A detector
-  (`tools/sf-watch.sh`) is installed and runs at every boot: if it happens to you, send the
+  (`tools/sf-watch.sh`) is installed and runs at every boot. Since 2026-09-21 it also
+  **recovers automatically**: after saving the evidence it restarts SurfaceFlinger, which clears
+  the hang without a reboot (measured on a live three-hour hang). You lose whatever app was in
+  the foreground, which beats a device that will not draw again. If it happens to you, send the
   contents of `/data/local/sf-hang/`.
 * **Landscape for a moment at every boot**, before the rotation lock applies.
 * **Battery life is not characterised yet.** Suspend works; long-term numbers are pending.

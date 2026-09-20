@@ -388,3 +388,69 @@ profile and a tombstone is exactly the capture worth having.
 
 A non-empty `perf.data` is not proof of usable samples, and a non-empty tombstone is not proof
 of a resolved stack. Those are judged on the contents, once there are contents to judge.
+
+
+---
+
+# Third occurrence, 2026-09-20 — caught live, diagnosed, and recovered without a reboot
+
+The instrumentation worked. The watcher tripped at 20:59:01, captured with every collector
+succeeding, and the device was still hung three hours later with ADB alive, so the failure was
+examined **while it was happening** rather than reconstructed afterwards.
+
+## What is established
+
+* **The spinning thread is the app `EventThread`** (`tid 2275`, `comm=app`). The `sf` EventThread
+  is parked correctly in its untimed wait. One loop, not general compositor failure.
+* **The trigger is a screen power-mode change.** `Setting power mode 2 on display 0` is logged at
+  20:58:09, and the watcher needs 45 s of sustained spin to fire at 20:59:01.
+* **Mutex ownership is proven, not inferred** -- the thing neither earlier incident could show.
+  The main SurfaceFlinger thread sits in `std::mutex::lock()` at the first instruction of
+  `EventThread::onScreenAcquired()`, reached from `Scheduler::onScreenAcquired` and
+  `SurfaceFlinger::setPowerModeInternal`. The EventThread's mutex word reads locked-with-waiters.
+  The compositor's main loop is therefore stopped: nothing composites, the panel holds its last
+  frame, and the power button appears dead because nothing can draw the result.
+* **The loop is the connection scan.** The link register is identical in two captures three hours
+  apart and normalises (load base `0xb3817000`) to `0xa0511`, the return address for the call at
+  `0xa050c` -- the temporary strong-reference release while scanning connections, the second row
+  of the call-site table above. Instruction-level profiling puts every hot address inside
+  `0xa031c..0xa0510`, with the scan's own back-edge the single hottest instruction.
+* **It is not a reference-counting defect and not a connection leak.** The profile is
+  `attemptIncStrong` 27%, `decStrong` 21%, `decWeak` 17% with the loop body at 30%: those are
+  callees of the scan, which is why incident 1's single sampled PC landed on the `decStrong` PLT
+  stub and looked like the culprit. The connection vector holds 16 entries and is unchanged over
+  three hours.
+* **It does not prevent suspend.** 822 s of CPU across 3.2 h of wall clock, about 7% duty: the
+  freezer stops the spinner on every suspend. 314 successful suspends. Unlike incident 2 this
+  does not flatten the battery; it simply never draws again.
+* **Zero kernel time.** 3.05 s of user time in 3 s with `stime` frozen, so the thread makes no
+  syscalls at all.
+
+Ghidra 12.1.3 headless (JDK 21) decompiled the function cleanly, giving the field offsets used
+above and the exact predicate: the wait is skipped by one condition, an event being pending.
+There are three exits -- untimed when idle, 16 ms in synthetic-vsync mode, 1 s with hardware vsync.
+
+## What is NOT established, stated plainly
+
+The live object reads `mState = Idle` and `mPendingEvents.size() = 0`, sampled 60 times. With
+those values the decompiled code must call the untimed wait, which is a syscall, and no syscalls
+occur. Meanwhile samples land on the event-type comparisons at `0xa036a` and `0xa0376`, which are
+only reachable when an event **is** present, at a rate comparable to the no-event path. Both
+readings cannot be right. The most likely explanation is that the queue fills and drains inside a
+single pass, faster than memory sampling can see, but that is a hypothesis and the pushing path
+is not identified. Settling it needs a watchpoint or single-stepping, not sampling.
+
+## The fix that is actually available: recover instead of reboot
+
+Killing SurfaceFlinger cleared it. MEASURED 2026-09-21 on the live three-hour hang: the
+compositor restarted, `dumpsys` answered again, the keyguard rendered with its wallpaper, the
+device was usable, and the watcher picked up the new pid by itself. **No reboot, no power hold.**
+
+`tools/sf-watch.sh` now does this automatically: `RECOVER=1` restarts SurfaceFlinger **after** the
+capture completes, capped at `MAX_RECOVER=3` per boot so a systematically broken state cannot
+restart-loop. Verified against a dummy spinning process -- detect, capture, then kill, in that
+order. Set `RECOVER=0` to keep a hung process for live debugging.
+
+The trade is honest: this is a soft framework restart, so foreground app state is lost. The
+alternative, observed twice, is a device that never draws again and needs a 20-second power hold.
+It is a mitigation, not a cure -- the compositor bug is untouched.

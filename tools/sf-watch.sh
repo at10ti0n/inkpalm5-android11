@@ -7,6 +7,14 @@
 #   run now:  adb shell su -c 'setsid sh /data/local/sf-watch.sh >/dev/null 2>&1 &'
 #   status:   adb shell su -c 'cat /data/local/sf-hang/status; ls /data/local/sf-hang'
 #
+# RECOVERY. After the capture completes -- never before, the evidence comes first -- this
+# kills SurfaceFlinger, which init restarts and which takes system_server with it. MEASURED
+# 2026-09-21 on a live three-hour hang: the compositor came back, dumpsys answered again, the
+# keyguard rendered, and the watcher picked up the new pid by itself. No reboot was needed.
+# That is a soft framework restart, so foreground app state is lost; the alternative observed
+# twice is a device that never draws again, cannot be woken by the power button, and needs a
+# 20-second power hold. Set RECOVER=0 to keep the hung process for live debugging instead.
+#
 # Trigger: ANY SurfaceFlinger thread above 80% of one core for three consecutive intervals
 # (~45 s). Idle is a few ticks per minute, and no ordinary use holds one core that long.
 # Percentages come from CLK_TCK and the MEASURED elapsed uptime, never an assumed interval.
@@ -21,6 +29,8 @@ BUSY_N=3             # consecutive intervals over BUSY_PCT before capturing
 INTERVAL=15          # seconds between samples
 COOLDOWN=1800        # seconds AFTER A CAPTURE before another may start
 KEEP=6               # most recent capture directories to keep
+RECOVER=1            # after capturing, restart SurfaceFlinger to break the livelock (0 = off)
+MAX_RECOVER=3        # per boot, so a systematically broken state cannot restart-loop
 mkdir -p "$OUT"
 HZ=$(getconf CLK_TCK); case "$HZ" in ''|*[!0-9]*) HZ=100;; esac
 log() { echo "$(date '+%m-%d %H:%M:%S') $*" >> "$OUT/sf-watch.log"; }
@@ -42,8 +52,8 @@ forget_all() {
   SEEN=
 }
 
-log "sf-watch started (interval ${INTERVAL}s, trigger ${BUSY_PCT}% x ${BUSY_N}, HZ=$HZ)"
-pid=0; SEEN=; last_cap=       # empty = no capture yet, so the cooldown cannot gate the first one
+log "sf-watch started (interval ${INTERVAL}s, trigger ${BUSY_PCT}% x ${BUSY_N}, HZ=$HZ, recover=$RECOVER)"
+pid=0; SEEN=; last_cap=; recoveries=0       # empty = no capture yet, so the cooldown cannot gate the first one
 while :; do
   now_s
   cur=$(pidof surfaceflinger)
@@ -100,6 +110,14 @@ while :; do
     sh "$CAP" "$d" >> "$OUT/sf-watch.log" 2>&1
     log "capture exit=$? -> $d ($(cat "$d/exit-status.txt" 2>/dev/null | tr '\n' ' '))"
     last_cap=$now; hot=0; hot_tid=
+    if [ "$RECOVER" = 1 ] && [ "${recoveries:-0}" -lt "$MAX_RECOVER" ]; then
+      recoveries=$((${recoveries:-0} + 1))
+      log "recovering: killing SurfaceFlinger pid=$pid (restart $recoveries of $MAX_RECOVER this boot)"
+      kill -9 "$pid" 2>/dev/null
+      # The pid-change branch on the next pass drops every cached counter.
+    elif [ "$RECOVER" = 1 ]; then
+      log "NOT recovering: already restarted $MAX_RECOVER times this boot, leaving it alone"
+    fi
     n=0
     for c in $(ls -1dt "$OUT"/capture-* 2>/dev/null); do
       n=$((n + 1)); [ "$n" -gt "$KEEP" ] && rm -rf "$c"
