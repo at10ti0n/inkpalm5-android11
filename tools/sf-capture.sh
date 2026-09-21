@@ -90,6 +90,19 @@ cat /proc/$pid/maps > "$out/sf-maps.txt" 2>&1; st maps $?
 
 timeout 15 simpleperf record -p "$pid" -e cpu-clock:u -f 200 -g --duration 5 -o "$out/perf.data" > "$out/perf-record.txt" 2>&1
 st perf-record $?
+# The spinning thread's own registers (incl. NEON d0-d15), 512 B of its stack and 256 B of the
+# object in r9 -- the event flag, the popped event and the pending-queue size at the same
+# instant, which no tombstone provides (it dumps memory for the first thread only). HOT_TID is
+# exported by sf-watch.sh; tools/src/threadregs.c.
+if [ -n "${HOT_TID:-}" ] && [ -x /data/local/threadregs ]; then
+  timeout 10 /data/local/threadregs "$HOT_TID" > "$out/hot-thread.txt" 2>&1; st hot-thread $?
+  # a second sample a moment later shows what moves and what does not
+  sleep 1; timeout 10 /data/local/threadregs "$HOT_TID" > "$out/hot-thread-2.txt" 2>&1; st_soft hot-thread-2 $?
+  # Does the spinning thread make ANY syscall? "Zero kernel time" so far is an inference from
+  # /proc stat ticks; three seconds of strace settles it (an empty file = none). INT so strace
+  # detaches cleanly; the exit status is the timeout's, so soft.
+  timeout -s INT 3 strace -tt -p "$HOT_TID" -o "$out/hot-thread-strace.txt" > "$out/hot-thread-strace.err" 2>&1; st_soft hot-thread-strace $?
+fi
 # Registers and stack, immediately after the profile and before anything that can block.
 timeout 30 debuggerd "$pid" > "$out/sf-tombstone.txt" 2>&1; st tombstone $?
 timeout 15 simpleperf report -i "$out/perf.data" --sort symbol > "$out/perf-report.txt" 2>&1

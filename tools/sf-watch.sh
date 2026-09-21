@@ -107,12 +107,17 @@ while :; do
     d="$OUT/capture-$(date '+%Y%m%d-%H%M%S')"
     log "LIVELOCK SUSPECTED pid=$pid tid=$top_tid comm=${comm:-?} ${top_pct}% of a core for $((BUSY_N * INTERVAL))s -> $d"
     mkdir -p "$d"; echo "spinning thread: tid=$top_tid comm=${comm:-?} ${top_pct}% of a core" > "$d/trigger.txt"
-    sh "$CAP" "$d" >> "$OUT/sf-watch.log" 2>&1
+    HOT_TID=$top_tid sh "$CAP" "$d" >> "$OUT/sf-watch.log" 2>&1
     log "capture exit=$? -> $d ($(cat "$d/exit-status.txt" 2>/dev/null | tr '\n' ' '))"
     last_cap=$now; hot=0; hot_tid=
     if [ "$RECOVER" = 1 ] && [ "${recoveries:-0}" -lt "$MAX_RECOVER" ]; then
       recoveries=$((${recoveries:-0} + 1))
       log "recovering: killing SurfaceFlinger pid=$pid (restart $recoveries of $MAX_RECOVER this boot)"
+      # MEASURED 2026-09-21: off the cable, the framework restart after the kill stalled for 13
+      # minutes because nothing held the device awake and it kept suspending mid-restart. Hold a
+      # wake lock for the restart window; a detached sleeper releases it.
+      echo sf-recover > /sys/power/wake_lock 2>/dev/null
+      ( sleep 240; echo sf-recover > /sys/power/wake_unlock 2>/dev/null ) >/dev/null 2>&1 &
       kill -9 "$pid" 2>/dev/null
       # The pid-change branch on the next pass drops every cached counter.
     elif [ "$RECOVER" = 1 ]; then

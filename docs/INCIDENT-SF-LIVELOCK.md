@@ -528,3 +528,49 @@ It removes the regime the livelock lived in and makes the scheduler coherent wit
 It does **not** prove the livelock cannot recur: the exact predicate that kept the scan loop out
 of its wait was never resolved (see above), and only time under the new regime will tell. The
 watcher and its automatic recovery therefore stay in place.
+
+## Fourth occurrence, 2026-09-21 23:10: the vsync fix did not remove it
+
+The first recurrence *under* the software-vsync regime, and the answer to the open question above
+is no: coherent vsync does not prevent the livelock.
+
+| | |
+|---|---|
+| 23:09:43.048 | SurfaceFlinger: `Setting power mode 2 on display 0` (screen-on) |
+| 23:09:43.053 | shim: `setVsyncEnabled enabled=2 -> sw vsync 1` (the generator **was** running) |
+| 23:10:36 | watcher: app EventThread (tid 2265) at 95% of a core for 45 s, capture taken |
+| 23:11:00 | watcher: SurfaceFlinger killed (recovery 1 of 3 this boot) |
+| 23:24:28 | watcher: new SurfaceFlinger pid seen, framework back |
+
+Same signature as the third occurrence, to the percentage point: the connection-scan callees
+(`attemptIncStrong` 26%, thread proxy 24%, `decStrong` 22%, `decWeak` 20%), the main thread
+blocked in `std::mutex::lock` at the top of `EventThread::onScreenAcquired`, the same trigger 53 s
+before detection. The capture's `dumpsys SurfaceFlinger` timed out as expected, so whether the app
+thread was still `synthetic` at that instant is not recorded; the enable line above is the only
+in-window evidence about vsync, and it says the generator had been asked for and was delivering.
+
+**The recovery worked, the restart did not.** The kill cleared the livelock in seconds, but with
+the cable out nothing held the device awake and it kept suspending in the middle of the framework
+restart: 13 minutes from kill to a new SurfaceFlinger, during which the power button appeared dead
+and the panel then showed the boot animation (phh's GSI draws Donald Duck and nephews as its logo
+mask, `assets/images/android-logo-mask.png` in `framework-res.apk`; there is no bootanimation.zip
+on this build). `tools/sf-watch.sh` now takes a kernel wake lock (`/sys/power/wake_lock`) for four
+minutes around the kill.
+
+**What the next capture will add.** The unresolved contradiction (state Idle, empty queue, yet no
+syscalls and event-type compares in the profile) needs the spinning thread's own state, not the
+process's. `tools/sf-capture.sh` now runs `tools/src/threadregs.c` on the hot thread twice, one
+second apart (registers, NEON d0-d15, 512 B of stack, 256 B of the object in r9 with the
+EventThread field offsets), and then three seconds of `strace` on it. An empty strace file is the
+first direct proof of "no syscalls"; a non-empty one ends that line of reasoning.
+
+**Ruled out on the way:** a kernel failing to preserve the callee-saved NEON registers d8-d15
+across context switches (which would let a loop counter held in NEON never reach its bound). A
+canary that loads patterns into d8-d15 and checks them in a tight loop ran 150 s on all four cores
+through eight screen-off/on cycles and refreshes: zero corruptions.
+
+**Status.** Four occurrences, always seconds after a screen-on, always the app EventThread's
+connection scan holding the EventThread mutex. Software vsync makes the scheduler coherent and is
+worth keeping on its own merits, but it is not the cure. The cure is not known. The watcher's
+detect-and-kill is the fix in service: about a minute of frozen panel, foreground app state lost,
+no reboot.
