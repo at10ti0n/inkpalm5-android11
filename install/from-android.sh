@@ -25,6 +25,17 @@ adb push "$R/tools/sf-watch.sh"                    /sdcard/
 adb push "$R/tools/sf-capture.sh"                  /sdcard/
 [ -f "$R/tools/threadregs.bin" ] && adb push "$R/tools/threadregs.bin" /sdcard/
 adb push "$R/configs/configure-native.sh"          /sdcard/
+# Optional: the SurfaceFlinger livelock patch (docs/INCIDENT-SF-LIVELOCK.md). Pulls the GSI's own
+# library, patches one instruction on this machine (hash-checked both ways), stages it where the
+# boot rc bind-mounts it before SurfaceFlinger starts. Takes effect at the next boot of a boot.img
+# built from a11boot/a11-prepend.rc that carries the bind line.
+if [ "${SF_PATCH:-0}" = 1 ]; then
+  t=$(mktemp -d); adb pull /system/lib/libsurfaceflinger.so "$t/stock.so" >/dev/null
+  python3 "$R/a11boot/patch-sf.py" "$t/stock.so" "$t/patched.so"
+  adb push "$t/patched.so" /data/local/tmp/libsurfaceflinger-patched.so >/dev/null
+  adb shell "su -c 'mv /data/local/tmp/libsurfaceflinger-patched.so /data/local/libsurfaceflinger-patched.so; chown root:root /data/local/libsurfaceflinger-patched.so; chmod 644 /data/local/libsurfaceflinger-patched.so; sha256sum /data/local/libsurfaceflinger-patched.so | cut -c1-16'" | tr -d '\r'
+  rm -rf "$t"; echo "  SurfaceFlinger patch staged (active after a reboot on a boot.img with the bind line)"
+fi
 
 adb shell "su -c '
 set -e

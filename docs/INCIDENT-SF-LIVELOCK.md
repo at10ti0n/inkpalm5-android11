@@ -574,3 +574,71 @@ connection scan holding the EventThread mutex. Software vsync makes the schedule
 worth keeping on its own merits, but it is not the cure. The cure is not known. The watcher's
 detect-and-kill is the fix in service: about a minute of frozen panel, foreground app state lost,
 no reboot.
+
+## The predicate, read from the samples: a zero the thread trusts forever
+
+2026-09-22. The existing profiles were enough after all. Reporting the two captures' samples by
+address instead of by symbol, and disassembling the range as Thumb (the first pass had decoded it
+as ARM and produced nonsense), gives an instruction-level picture of the spin:
+
+* The hot loop is the inner connection scan (`0xa031c..0xa0510`): promote, read the
+  connection's vsync request, test the event's `has_value` byte at `sp+0x88`, compare the event
+  type against `conf`, `plug` and `vsyn`, release, next. Sixteen connections, unchanged.
+* In nearly every iteration the `has_value` byte is **set**: all three type compares carry samples
+  in both captures. And **none of the three matches**: the code after each successful compare has
+  zero samples in both captures. An event that exists but is of no known type.
+* The scan's exit is reached too (`0xa0520..0xa0528`, a few samples), consumers are empty, and
+  the outer loop comes back round (`0xa0026..0xa004e`). No wait, because `if (event) continue;`.
+
+How can `event` be set on every pass while the queue is empty (`+0x58` reads 0)? The loop head:
+
+```
+9fff0  vmov.i32  q4, #0            ; ONCE, before the thread's endless loop
+...
+a0034  add   r2, sp, #0x60         ; the per-iteration std::optional<Event>
+a003c  vst1.64 {d8,d9}, [r0], r1   ; "event = nullopt": zero it by storing q4 ...
+a0040  ldr.w r1, [r9, #0x58]       ; mPendingEvents.size()
+a0044  vst1.64 {d8,d9}, [r0]       ; ... including the has_value byte at sp+0x88
+a004a  vst1.64 {d8,d9}, [r2]
+a004e  beq.w a02de                 ; empty -> straight to the scan with "no event"
+```
+
+The compiler zeroed `q4` (`d8/d9`) once and reuses it as a source of zeros on every pass, which
+is legal: d8-d15 are callee-saved, every function this thread ever calls must restore them. If
+that promise is broken once in the thread's life, `has_value` reads the low byte of `d9` on every
+subsequent pass: an event that exists, matches nothing, and suppresses the wait. Those three
+stores are the only readers of d8/d9 in the whole function, and the healthy thread (ptrace,
+positive control) does show `d8 = d9 = 0`.
+
+**What this does and does not establish.** The mechanism fits the control flow exactly and
+explains every previously contradictory observation (Idle state, empty queue, no syscalls, type
+compares that "should be unreachable"). It does **not** show the corruption itself: no capture so
+far includes the hot thread's VFP registers (tombstones omit them), and it does not say who breaks
+the promise. Two candidates: the kernel losing a thread's VFP state (cpuidle core power-down,
+suspend/resume, hotplug), or a callee in userspace that writes d8-d15 without saving them. The
+next capture reads d8-d15 of the hot thread twice (`threadregs`), which decides between "d9's low
+byte is nonzero while the queue is empty" and "this reading is wrong".
+
+**Canaries.** A busy canary (150 s, 4 cores, screen cycles) and a sleeping one (20 min, 4 cores,
+100 ms checks, 15 screen-off/on cycles, generated code audited: d8-d15 touched only by the intended
+`vldmia`/`vstmia`) saw zero corruptions. Both ran on the USB cable, and on the cable this device
+**never suspends** (`chgusb_det` and `usb_connecting` wakeup sources stay active; suspend_stats did
+not move), so they exercised cpuidle (`cpu-sleep-0`, `cluster-sleep-0`, millions of entries) but not
+suspend/resume. An 8-hour canary is running; it tests suspend only if the device is unplugged.
+
+## The patch (staged, not in service): `a11boot/patch-sf.py`
+
+One instruction. `0xa0044: vst1.64 {d8,d9},[r0]` becomes `strb.w r1,[sp,#0x88]`. `r1` is the
+queue size just loaded: zero when the queue is empty, which is the only case where the zero
+matters; when the queue is not empty the pop path writes `has_value = 1` itself (`0xa00a6`) before
+anything reads it. It removes that byte's dependence on `d9` and nothing else; it is a targeted
+workaround, not a repair of whatever breaks the register. Verified live for ten minutes (bind-mounted
+over the system copy, SurfaceFlinger restarted, patched inode mapped, screen cycles, screenshots,
+EventThread idle and not synthetic), then **reverted** so the next hang runs the stock library and
+the capture can record d8-d15 first. Comparison plan: one more occurrence on stock with registers,
+then the patched library for as long as it takes to beat the ~daily rate.
+
+To put it in service: `SF_PATCH=1 install/from-android.sh` stages the patched copy, and a boot.img
+built from the current `a11boot/a11-prepend.rc` bind-mounts it before SurfaceFlinger starts. An
+in-place replacement in `/system` (the partition remounts read-write here) was considered and not
+done.

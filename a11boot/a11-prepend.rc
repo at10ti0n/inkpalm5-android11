@@ -19,6 +19,11 @@ on post-fs-data
     mkdir /mnt/androidwritable 0711 root root
     mount none /mnt/user /mnt/installer bind rec
     mount none /mnt/user /mnt/androidwritable bind rec
+    # SurfaceFlinger EventThread livelock fix (docs/INCIDENT-SF-LIVELOCK.md): a one-instruction
+    # patch of the GSI's libsurfaceflinger.so, produced by a11boot/patch-sf.py and installed by
+    # `SF_PATCH=1 install/from-android.sh`. SurfaceFlinger starts at `on boot`, after this, so it
+    # maps the patched copy. Absent file = mount fails = stock library, nothing else changes.
+    mount none /data/local/libsurfaceflinger-patched.so /system/lib/libsurfaceflinger.so bind
 
 # Android 11 (PHH GSI) on Moaan InkPalm 5 Pro Mini (EPD105) -- prepended to the stock
 # Android 8.1 boot ramdisk /init.rc by mkboot.py, so these register before everything else.
