@@ -43,4 +43,21 @@ stop radio_monitor-daemon 2>/dev/null
 [ -x /data/local/sf-watch.sh ] && ! pgrep -f "[s]f-watch.sh" >/dev/null 2>&1 && \
   setsid sh /data/local/sf-watch.sh >/dev/null 2>&1 &
 
+# SurfaceFlinger livelock patch (docs/INCIDENT-SF-LIVELOCK.md). The boot rc bind-mounts the
+# patched library before SurfaceFlinger starts; on a boot.img that predates that rc line this
+# fallback does it here and restarts the compositor ONCE (a framework restart, ~45 s, only when
+# the running SurfaceFlinger maps a different file than the patched copy).
+P=/data/local/libsurfaceflinger-patched.so
+if [ -f "$P" ] && [ ! -e /dev/.sf-patch-tried ]; then
+  touch /dev/.sf-patch-tried
+  want=$(stat -c %i "$P"); have=$(grep libsurfaceflinger.so /proc/$(pidof surfaceflinger)/maps 2>/dev/null | head -1 | awk '{print $5}')
+  if [ -n "$have" ] && [ "$have" != "$want" ]; then
+    mount -o bind "$P" /system/lib/libsurfaceflinger.so && {
+      echo "$(date) sf-patch: bind mounted, restarting surfaceflinger (mapped inode $have, want $want)" >> $L
+      echo sf-patch > /sys/power/wake_lock; ( sleep 180; echo sf-patch > /sys/power/wake_unlock ) >/dev/null 2>&1 </dev/null &
+      kill -9 $(pidof surfaceflinger)
+    }
+  else echo "$(date) sf-patch: already in service (inode $have)" >> $L; fi
+fi
+
 echo "$(date) done user_rotation=$(settings get system user_rotation)" >> $L
