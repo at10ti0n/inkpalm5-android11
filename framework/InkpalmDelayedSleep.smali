@@ -2,7 +2,7 @@
 .super Ljava/lang/Object;
 .source "InkpalmDelayedSleep.java"
 
-# The delayed half of "show the lock screen, then sleep". It carries ONLY a generation token
+# The completion / fallback half of "show the standby image, then sleep". It carries ONLY a generation token
 # and decides nothing: the request itself (event time, reason, flags, uid, origin) lives in
 # PowerManagerService, because at most one request is pending at a time, and reading it there
 # under the lock is what keeps the decision atomic.

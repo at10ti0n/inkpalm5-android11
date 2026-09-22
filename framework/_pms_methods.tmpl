@@ -1,5 +1,5 @@
 
-# inkpalm: promote the staged request to the pending one and arm a delayed sleep.
+# inkpalm: promote the staged request to the pending one and arm a completion-gated sleep with a bounded fallback.
 #
 # No arguments ON PURPOSE. Most Dalvik instructions address only v0-v15, so a method with many
 # parameters pushes them past that limit, and raising an EXISTING method's .locals shifts its
@@ -16,6 +16,20 @@
 #   pending button  + anything     -> ignore. The explicit request in flight wins.
 .method private inkpalmArmLocked()Z
     .registers 8
+
+    iget-boolean v1, p0, {PMS}->mSystemReady:Z
+    if-eqz v1, :cond_nochange
+    iget-boolean v1, p0, {PMS}->mBootCompleted:Z
+    if-eqz v1, :cond_nochange
+    iget-wide v1, p0, {PMS}->mInkpalmReqTime:J
+    iget-wide v3, p0, {PMS}->mLastWakeTime:J
+    cmp-long v5, v1, v3
+    if-ltz v5, :cond_nochange
+    invoke-virtual {{p0}}, {PMS}->getWakefulnessLocked()I
+    move-result v1
+    if-eqz v1, :cond_nochange
+    const/4 v2, 0x3
+    if-eq v1, v2, :cond_nochange
 
     iget-boolean v1, p0, {PMS}->mInkpalmPending:Z
 
@@ -56,6 +70,8 @@
 
     iput v1, p0, {PMS}->mInkpalmGen:I
 
+    invoke-static {{v1}}, Lcom/android/server/power/StandbyScreen;->generation(I)V
+
     const/4 v2, 0x1
 
     iput-boolean v2, p0, {PMS}->mInkpalmPending:Z
@@ -72,7 +88,7 @@
 
     invoke-direct {{v2, p0, v1}}, {SLEEPER}-><init>({PMS}I)V
 
-    const-wide/16 v4, 0x320
+    const-wide/16 v4, 0x1f40
 
     invoke-virtual {{v3, v2, v4, v5}}, Landroid/os/Handler;->postDelayed(Ljava/lang/Runnable;J)Z
 
@@ -91,6 +107,8 @@
     add-int/lit8 v1, v1, 0x1
 
     iput v1, p0, {PMS}->mInkpalmGen:I
+
+    invoke-static {{v1}}, Lcom/android/server/power/StandbyScreen;->generation(I)V
 
     move-object v1, p0
 
@@ -118,138 +136,122 @@
     return v1
 .end method
 
-# inkpalm: the delayed callback. Token check, eligibility re-check and the sleep all happen in
-# ONE acquisition of mLock, so nothing can interleave between deciding and sleeping.
+# Called either by verified presentation completion or the independent 8-second deadline.
+# Both callbacks may run: mInkpalmPending makes the decision one-shot under mLock.
 .method inkpalmFire(I)V
     .registers 14
-
     iget-object v0, p0, {PMS}->mLock:Ljava/lang/Object;
-
     monitor-enter v0
-
     :try_start_0
     iget v1, p0, {PMS}->mInkpalmGen:I
-
     if-ne v1, p1, :cond_done
-
+    iget-boolean v1, p0, {PMS}->mInkpalmPending:Z
+    if-eqz v1, :cond_done
     const/4 v1, 0x0
-
     iput-boolean v1, p0, {PMS}->mInkpalmPending:Z
-
-    # A timeout request must still be warranted when it fires. A wake lock taken during the
-    # delay, or a changed screen-off timeout, generates no user activity at all, so the token
-    # does not cover it. A power-button request is unconditional, as in stock.
+    invoke-static {{p1}}, Lcom/android/server/power/StandbyScreen;->stop(I)V
     iget-boolean v1, p0, {PMS}->mInkpalmIsTimeout:Z
-
     if-eqz v1, :cond_go
-
     invoke-direct {{p0}}, {PMS}->isItBedTimeYetLocked()Z
-
     move-result v1
-
-    if-eqz v1, :cond_done
-
+    if-eqz v1, :cond_cancel
     :cond_go
-    # the ORIGINAL event time, reason, flags and uid, so goToSleepNoUpdateLocked's own
-    # staleness checks (against mLastWakeTime / mLastSleepTime) still reject a request that a
-    # wake overtook. Substituting "now" and zero flags would quietly change that.
     move-object v2, p0
-
     iget-wide v3, p0, {PMS}->mInkpalmEventTime:J
-
     iget v5, p0, {PMS}->mInkpalmReason:I
-
     iget v6, p0, {PMS}->mInkpalmFlags:I
-
     iget v7, p0, {PMS}->mInkpalmUid:I
-
+    const/4 v1, 0x1
+    iput-boolean v1, p0, {PMS}->mInkpalmFiring:Z
     invoke-direct/range {{v2 .. v7}}, {PMS}->goToSleepNoUpdateLocked(JIII)Z
-
     move-result v1
-
-    if-eqz v1, :cond_done
-
+    const/4 v2, 0x0
+    iput-boolean v2, p0, {PMS}->mInkpalmFiring:Z
+    if-eqz v1, :cond_cancel
     invoke-direct {{p0}}, {PMS}->updatePowerStateLocked()V
-
+    goto :cond_done
+    :cond_cancel
+    invoke-direct {{p0}}, {PMS}->inkpalmInvalidate()V
     :cond_done
     monitor-exit v0
     :try_end_0
     .catchall {{:try_start_0 .. :try_end_0}} :catchall_0
-
     return-void
-
     :catchall_0
     move-exception v1
-
+    const/4 v2, 0x0
+    iput-boolean v2, p0, {PMS}->mInkpalmFiring:Z
     monitor-exit v0
-
     throw v1
 .end method
 
-# inkpalm: show the keyguard from the handler thread, but only if this request is still the
-# live one when CHECKED -- a request cancelled or superseded before this runs shows nothing.
-# Dispatch is committed at that check: activity arriving between it and the call below does
-# not stop the keyguard (see InkpalmShowKeyguard.smali for why there is no second check).
-# The policy reference is read under the lock (null when stale, so nothing happens) and
-# lockNow() is called AFTER releasing it: it reaches window manager over binder, and
-# stock PowerManagerService never invokes WindowManagerPolicy itself -- it hands the policy to
-# Notifier, which calls it from its own thread. Holding mLock across that is a lock-order hazard.
-.method public inkpalmShowKeyguard(I)V
-    .registers 6
-
+# Only captures references under mLock. Window work is dispatched to a separate looper.
+.method public inkpalmShowStandby(I)V
+    .registers 7
     const/4 v1, 0x0
-
     iget-object v0, p0, {PMS}->mLock:Ljava/lang/Object;
-
     monitor-enter v0
-
     :try_start_0
     iget-boolean v2, p0, {PMS}->mInkpalmPending:Z
-
     if-eqz v2, :cond_stale
-
     iget v2, p0, {PMS}->mInkpalmGen:I
-
     if-ne v2, p1, :cond_stale
-
-    iget-object v1, p0, {PMS}->mPolicy:Lcom/android/server/policy/WindowManagerPolicy;
-
+    iget-object v1, p0, {PMS}->mContext:Landroid/content/Context;
     :cond_stale
     monitor-exit v0
     :try_end_0
     .catchall {{:try_start_0 .. :try_end_0}} :catchall_0
-
     if-eqz v1, :cond_none
-
-    const/4 v2, 0x0
-
-    invoke-interface {{v1, v2}}, Lcom/android/server/policy/WindowManagerPolicy;->lockNow(Landroid/os/Bundle;)V
-
+    iget-object v2, p0, {PMS}->mHandler:Landroid/os/Handler;
+    new-instance v3, {SLEEPER}
+    invoke-direct {{v3, p0, p1}}, {SLEEPER}-><init>({PMS}I)V
+    invoke-static {{v1, p1, v2, v3}}, Lcom/android/server/power/StandbyScreen;->show(Landroid/content/Context;ILandroid/os/Handler;Ljava/lang/Runnable;)V
     :cond_none
     return-void
-
     :catchall_0
     move-exception v1
-
     monitor-exit v0
-
     throw v1
 .end method
 
-# inkpalm: accepted user activity invalidates any pending delayed sleep. Called from
-# userActivityNoUpdateLocked (lock already held) at the points where it records the activity.
+# Interactive activity / successful wake / superseding sleep invalidates queued work.
 .method private inkpalmInvalidate()V
     .registers 2
-
     iget v0, p0, {PMS}->mInkpalmGen:I
-
     add-int/lit8 v0, v0, 0x1
-
     iput v0, p0, {PMS}->mInkpalmGen:I
-
+    invoke-static {{v0}}, Lcom/android/server/power/StandbyScreen;->generation(I)V
     const/4 v0, 0x0
-
     iput-boolean v0, p0, {PMS}->mInkpalmPending:Z
+    return-void
+.end method
 
+.method private inkpalmOtherSleep()V
+    .registers 2
+    iget-boolean v0, p0, {PMS}->mInkpalmFiring:Z
+    if-nez v0, :done
+    invoke-direct {{p0}}, {PMS}->inkpalmInvalidate()V
+    :done
+    return-void
+.end method
+
+# ON_AFTER_RELEASE and other software OTHER/NO_CHANGE_LIGHTS updates still update
+# native activity clocks, but must not undo an explicit power-button request.
+# Actual touch/button events, regular activity, and timeout requests still cancel.
+.method private inkpalmNoChangeLightsActivity(I)V
+    .registers 5
+    if-nez p1, :cancel
+    iget-boolean v0, p0, {PMS}->mInkpalmPending:Z
+    if-eqz v0, :cancel
+    iget-boolean v0, p0, {PMS}->mInkpalmIsTimeout:Z
+    if-nez v0, :cancel
+    const-string v0, "InkpalmStandby"
+    const-string v1, "preserved power-button request after software NO_CHANGE_LIGHTS activity"
+    new-instance v2, Ljava/lang/Throwable;
+    invoke-direct {{v2}}, Ljava/lang/Throwable;-><init>()V
+    invoke-static {{v0, v1, v2}}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+    return-void
+    :cancel
+    invoke-direct {{p0}}, {PMS}->inkpalmInvalidate()V
     return-void
 .end method

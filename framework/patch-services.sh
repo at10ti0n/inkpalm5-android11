@@ -1,12 +1,7 @@
 #!/bin/bash
-# Make a short power press -- and the idle timeout -- show the lock screen BEFORE the
-# display goes off, so the E Ink panel holds the standby image through sleep instead of the
-# app that was open.
-#
-# Unpatched Android shows the keyguard and switches the display off at the same time; on
-# E Ink the last composited frame is what stays, and the keyguard loses that race every
-# time. The patch (framework/patch-powerpress.py + InkpalmSleep.smali) makes powerPress
-# call lockNow() and sleep 800 ms later; on the lock screen already, it sleeps at once.
+# Show a dedicated standby overlay before power-button / idle-timeout sleep.
+# StandbyScreen observes the window presentation and subsequent panel power-down.
+# The PMS handler has an independent bounded fallback; see docs/STANDBY-IMAGE.md.
 #
 # Works on YOUR OWN services.jar, like systemui/patch-systemui.sh -- a patched jar only
 # matches the GSI build it came from.
@@ -18,10 +13,25 @@
 set -euo pipefail
 JAR=${1:?usage: patch-services.sh <services.jar> <out.jar>}
 OUT=${2:?usage: patch-services.sh <services.jar> <out.jar>}
+JAR=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$JAR")
+OUT=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$OUT")
+[ "$JAR" != "$OUT" ] || { echo "Use a separate output file" >&2; exit 1; }
 HERE=$(cd "$(dirname "$0")" && pwd)
 BT=${BT:-/opt/homebrew/share/android-commandlinetools/build-tools/34.0.0}
+AJ=${AJ:-/opt/homebrew/share/android-commandlinetools/platforms/android-27/android.jar}
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 say() { printf '\n== %s\n' "$*"; }
+
+# Exact input reviewed on this PHH v313 build. Never stack this on an old delay patch.
+WANT=ac34b0f57e09fc32ff1e024736f7114e30464c973406e0a3204cd1d5848518d4
+GOT=$(shasum -a256 "$JAR" | awk '{print $1}')
+[ "$GOT" = "$WANT" ] || { echo "Unreviewed services.jar: $GOT" >&2; exit 1; }
+
+say "compiling the standalone render / completion worker"
+mkdir -p "$W/cls" "$W/dex"
+javac -source 8 -target 8 -bootclasspath "$AJ" -d "$W/cls" "$HERE/StandbyScreen.java"
+"$BT/d8" --release --min-api 30 --output "$W/dex" "$W"/cls/com/android/server/power/*.class
+(cd "$W/dex" && zip -q carrier.apk classes.dex && apktool d -f -o smali-out carrier.apk >/dev/null)
 
 say "decompiling services.jar (a minute or two)"
 apktool d -f -o "$W/src" "$JAR" >/dev/null
@@ -30,7 +40,8 @@ PMS=$(find "$W/src" -name PowerManagerService.smali | head -1)
 [ -n "$PWM" ] && [ -n "$PMS" ] || { echo "PhoneWindowManager/PowerManagerService smali not found" >&2; exit 1; }
 
 say "applying the patch (power press + idle timeout)"
-cp "$HERE/InkpalmDelayedSleep.smali" "$HERE/InkpalmShowKeyguard.smali" "$(dirname "$PMS")/"
+cp "$HERE/InkpalmDelayedSleep.smali" "$HERE/InkpalmShowStandby.smali" "$(dirname "$PMS")/"
+cp "$W"/dex/smali-out/smali/com/android/server/power/*.smali "$(dirname "$PMS")/"
 python3 "$HERE/patch-powerpress.py" "$PWM" "$PMS"
 
 say "rebuilding"
@@ -40,26 +51,16 @@ apktool b -f "$W/src" -o "$OUT" >/dev/null
   || { echo "self-check failed: patched method not in classes.dex" >&2; exit 1; }
 echo
 echo "wrote $OUT  (sha256 $(shasum -a256 "$OUT" | cut -c1-16))"
+shasum -a256 "$OUT" | awk '{print $1}' > "$OUT.standby-sha256"
 cat <<'EOS'
 
-Install (keeps backups; a broken services.jar means no Android UI, but ADB survives):
-  adb push <out.jar> /data/local/tmp/services-patched.jar
-  adb shell su -c '
-    F=/system/framework
-    mount -o rw,remount /system
-    [ -f /data/local/services.jar.stock ] || cp -p $F/services.jar /data/local/services.jar.stock
-    [ -d /data/local/services-oat.stock ] || { mkdir -p /data/local/services-oat.stock; cp -p $F/oat/arm/services.* /data/local/services-oat.stock/; }
-    rm -f $F/oat/arm/services.odex $F/oat/arm/services.vdex $F/oat/arm/services.art   # stale odex would win
-    cp /data/local/tmp/services-patched.jar $F/services.jar
-    chmod 644 $F/services.jar; chown 0:0 $F/services.jar; chcon u:object_r:system_file:s0 $F/services.jar
-    sync; reboot'
+Controlled trial only; not a released asset. See docs/STANDBY-IMAGE.md for results.
+The following script verifies the framework and keeps a dedicated backup.
+It reboots the device; ADB recovery requires Android to boot far enough.
+
+Install:
+  bash framework/trial-standby.sh install <services-standby.jar>
 
 Rollback:
-  adb shell su -c '
-    F=/system/framework
-    mount -o rw,remount /system
-    cp /data/local/services.jar.stock $F/services.jar
-    cp -p /data/local/services-oat.stock/services.* $F/oat/arm/
-    chmod 644 $F/services.jar; chcon u:object_r:system_file:s0 $F/services.jar
-    sync; reboot'
+  bash framework/trial-standby.sh rollback
 EOS

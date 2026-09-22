@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Model test for the delayed-sleep interlock in patch-powerpress.py.
+"""Model test for the standby-sleep interlock in patch-powerpress.py.
 
 SCOPE, stated plainly: this exercises the ALGORITHM -- generation tokens, the coalescing
 policy, what is re-checked when the callback fires, and what happens when scheduling fails.
@@ -8,7 +8,7 @@ It is NOT a test of the smali and NOT a test of the device.
 It cannot catch what a model cannot see. The previous revision of this patch assembled only
 after a register-allocation failure was found by the assembler, not here: most Dalvik
 instructions address v0-v15 only, and raising an existing method's .locals shifts its
-parameter registers past that. It also cannot see lock ordering -- `lockNow()` is modelled as
+parameter registers past that. It also cannot see lock ordering -- window creation is modelled as
 a plain call, whereas in the real code it reaches window manager over binder, which is why it
 must not run under the power lock.
 
@@ -29,8 +29,8 @@ class Pms:
         self.active = None          # (event_time, reason, flags, uid, is_timeout)
         self.staged = None
         self.posted = []            # tokens handed to postDelayed
-        self.keyguard_queue = []    # tokens handed to the keyguard Runnable
-        self.keyguard_shown = 0     # times it actually locked the device
+        self.overlay_queue = []    # tokens handed to the overlay Runnable
+        self.overlay_shown = 0     # times an overlay was added
         self.slept = []             # (event_time, reason, flags, uid) actually slept with
         self.bedtime = bedtime      # what isItBedTimeYetLocked() will say when the callback runs
         self.post_ok = post_ok      # whether the looper accepts messages
@@ -54,7 +54,7 @@ class Pms:
         self.active = self.staged
         self.gen += 1
         self.pending = True
-        self.keyguard_queue.append(self.gen)     # the keyguard Runnable carries the token too
+        self.overlay_queue.append(self.gen)     # the overlay Runnable carries the token too
         if not self.post_ok:
             self.pending = False
             self.gen += 1
@@ -62,28 +62,29 @@ class Pms:
         self.posted.append(self.gen)
         return False
 
-    def user_activity(self):        # reached only after the original method's validation
+    def user_activity(self, no_change_lights=False, event=0):
+        if no_change_lights and event == 0 and self.pending and self.active[4] is BUTTON:
+            return
         self.gen += 1
         self.pending = False
 
-    # Deliberately TWO steps, because the real code is two steps: the token is validated
-    # under mLock, the lock is released, and only then does lockNow() go out over binder.
-    # Modelling them as one operation would hide the window between them, which is exactly
-    # what an earlier revision of this file did.
-    def keyguard_validate(self, token):
-        """Under mLock: decide whether this queued keyguard message is still live."""
+    # PMS and render worker each validate the token; the real worker owns cleanup too.
+    def overlay_validate(self, token):
+        """Under mLock: decide whether this queued overlay message is still live."""
         return self.pending and token == self.gen
 
-    def keyguard_dispatch(self, validated):
-        """After releasing mLock: the outbound call. Nothing can stop it at this point."""
-        if validated:
-            self.keyguard_shown += 1
+    def overlay_dispatch(self, token):
+        """The render worker checks the generation again before adding a window.
+        Cancellation racing the add can still flash an overlay; queued removal cleans it up.
+        """
+        if self.overlay_validate(token):
+            self.overlay_shown += 1
 
-    def run_keyguard(self, token):
-        self.keyguard_dispatch(self.keyguard_validate(token))
+    def run_overlay(self, token):
+        self.overlay_dispatch(token)
 
     def fire(self, token):
-        if token != self.gen:
+        if token != self.gen or not self.pending:
             return
         self.pending = False
         if self.active[4] is TIMEOUT and not self.bedtime:
@@ -113,6 +114,14 @@ ok &= check("arm then fire sleeps once, with the ORIGINAL event time and flags",
 p = Pms(); p.request(BTN); p.user_activity(); p.fire(p.posted[0])
 ok &= check("activity before fire cancels the sleep", p.slept == [] and not p.pending)
 
+# Software wake-lock-release activity cannot undo an explicit button request.
+p = Pms(); p.request(BTN); p.user_activity(no_change_lights=True); p.fire(p.posted[0])
+ok &= check("software NO_CHANGE_LIGHTS preserves button fallback", p.slept == [BTN[:4]])
+p = Pms(); p.request(TMO); p.user_activity(no_change_lights=True); p.fire(p.posted[0])
+ok &= check("software activity still cancels idle timeout", p.slept == [])
+p = Pms(); p.request(BTN); p.user_activity(no_change_lights=True, event=2); p.fire(p.posted[0])
+ok &= check("touch with NO_CHANGE_LIGHTS still cancels button sleep", p.slept == [])
+
 # 3. the revival case: arm A, activity, arm B, then A's callback runs
 p = Pms(); p.request(BTN); a = p.posted[0]
 p.user_activity(); p.request(TMO); b = p.posted[1]
@@ -125,7 +134,7 @@ ok &= check("...and B still sleeps", p.slept == [TMO[:4]])
 # 4. coalescing policy, each case stated
 p = Pms(); p.request(TMO); p.request(TMO); p.request(TMO)
 ok &= check("timeout while a timeout is pending: coalesced, posted once",
-            len(p.posted) == 1 and len(p.keyguard_queue) == 1)
+            len(p.posted) == 1 and len(p.overlay_queue) == 1)
 
 p = Pms(); p.request(TMO); first = p.posted[0]
 p.request(BTN)
@@ -175,21 +184,21 @@ ok &= check("a later request cannot overwrite the active one (the staging race)"
 p.fire(p.posted[0])
 ok &= check("...and the button request sleeps with its own values", p.slept == [BTN[:4]])
 
-# 10. the queued keyguard work must respect the same token
+# 10. the queued overlay work must respect the same token
 p = Pms(); p.request(BTN); tok = p.posted[0]
 p.user_activity()                   # cancels the sleep
-p.run_keyguard(p.keyguard_queue[0])
-ok &= check("cancelled request: the queued keyguard does NOT lock the device",
-            p.keyguard_shown == 0)
+p.run_overlay(p.overlay_queue[0])
+ok &= check("cancelled request: the queued overlay does not appear",
+            p.overlay_shown == 0)
 p.fire(tok)
 ok &= check("...and nothing sleeps", p.slept == [])
 
-p = Pms(); p.request(TMO); old_kg = p.keyguard_queue[0]
+p = Pms(); p.request(TMO); old_kg = p.overlay_queue[0]
 p.request(BTN)                      # supersedes
-p.run_keyguard(old_kg)
-ok &= check("superseded request: its keyguard work is dropped", p.keyguard_shown == 0)
-p.run_keyguard(p.keyguard_queue[1])
-ok &= check("...while the live request still shows the keyguard", p.keyguard_shown == 1)
+p.run_overlay(old_kg)
+ok &= check("superseded request: its overlay work is dropped", p.overlay_shown == 0)
+p.run_overlay(p.overlay_queue[1])
+ok &= check("...while the live request still shows the overlay", p.overlay_shown == 1)
 
 # 11. scheduling failure returns "changed" to the caller instead of updating power state again
 p = Pms(post_ok=False); p.staged = TMO
@@ -199,18 +208,28 @@ ok &= check("failed scheduling reports the change to its caller, does not recurs
 p2 = Pms(); p2.staged = TMO
 ok &= check("normal arming reports no change", p2._arm_locked() is False)
 
-# 12. The accepted race, asserted rather than hidden. Activity landing AFTER validation but
-#     BEFORE the outbound call does not stop the keyguard: dispatch is committed at
-#     validation. The sleep is still cancelled, so the device stays awake and locked.
+# 12. Cancellation before the render worker runs prevents an old overlay from showing.
 p = Pms(); p.request(TMO); tok = p.posted[0]
-v = p.keyguard_validate(p.keyguard_queue[0])        # passes: still live
-p.user_activity()                                   # lands in the window
-p.keyguard_dispatch(v)
-ok &= check("ACCEPTED: activity after validation does not stop the keyguard",
-            p.keyguard_shown == 1)
+assert p.overlay_validate(tok)
+p.user_activity()
+p.overlay_dispatch(tok)
+ok &= check("cancelled before render-worker dispatch: stale overlay is dropped",
+            p.overlay_shown == 0)
 p.fire(tok)
-ok &= check("...but the sleep is still cancelled, so the device stays awake and locked",
-            p.slept == [] and not p.pending)
+ok &= check("...and its sleep is cancelled", p.slept == [] and not p.pending)
+
+# 13. The real implementation has TWO callbacks: completion and timeout. Only one may sleep.
+p = Pms(); p.request(BTN); tok = p.posted[0]
+p.fire(tok); p.fire(tok)
+ok &= check("completion followed by fallback sleeps exactly once", p.slept == [BTN[:4]])
+p = Pms(); p.request(BTN); tok = p.posted[0]
+p.fire(tok); p.user_activity(); p.fire(tok)
+ok &= check("late completion after fallback and wake cannot re-sleep", p.slept == [BTN[:4]])
+
+# 14. A wake or an unrelated accepted sleep uses the same invalidation operation.
+p = Pms(); p.request(TMO); tok = p.posted[0]
+p.user_activity(); p.fire(tok)
+ok &= check("superseding transition invalidates queued sleep", p.slept == [])
 
 print("\nall model checks passed" if ok else "\nMODEL CHECKS FAILED")
 raise SystemExit(0 if ok else 1)

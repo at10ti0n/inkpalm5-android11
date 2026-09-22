@@ -4,7 +4,9 @@ import android.app.WallpaperManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.WindowManager;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -41,6 +43,17 @@ public class LockWallpaperReceiver extends BroadcastReceiver {
                 Log.e(TAG, "unreadable path: " + path);
                 return;
             }
+            // The launcher asks the wallpaper service for a "desired size" twice the screen
+            // width (1440x1280 here) for home-screen parallax, and SystemUI then scales a
+            // screen-sized lock wallpaper up to fill it: the keyguard showed one half of the
+            // 720x1280 image at 2x while the standby overlay shows it 1:1 (MEASURED 2026-09-22).
+            // Parallax means nothing on E Ink, so pin the desired size to the portrait screen.
+            // Persisted by the wallpaper service; needs SET_WALLPAPER_HINTS (system UID).
+            DisplayMetrics dm = new DisplayMetrics();
+            ((WindowManager) ctx.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay().getRealMetrics(dm);
+            int w = Math.min(dm.widthPixels, dm.heightPixels), h = Math.max(dm.widthPixels, dm.heightPixels);
+            wm.suggestDesiredDimensions(w, h);
+            Log.i(TAG, "desired wallpaper size " + w + "x" + h);
             try (InputStream in = new FileInputStream(path)) {
                 // allowBackup=true, visibleCropHint=null (no crop; the image is already 720x1280)
                 int id = wm.setStream(in, null, true, WallpaperManager.FLAG_LOCK);

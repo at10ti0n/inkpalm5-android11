@@ -1,48 +1,22 @@
 #!/usr/bin/env python3
-"""Patch services.jar so a short power press -- and the idle timeout -- show the lock screen
-BEFORE the display goes off. On E Ink the panel keeps the last composited frame, and stock
-Android draws the keyguard and switches the display off concurrently, so the app frame wins
-that race and becomes the sleep screen.
-
-usage: patch-powerpress.py <PhoneWindowManager.smali> <PowerManagerService.smali>
-       (edits in place, idempotent)
-
-Design, after two rounds of review of earlier attempts (neither installed):
-
-* All state and every decision live in PowerManagerService. An earlier version kept shared
-  statics on a class in com.android.server.policy and read them from com.android.server.power;
-  package-private access does not cross packages just because the classes ship in one jar, so
-  that would have thrown IllegalAccessError. Assembling cleanly proves nothing.
-* PhoneWindowManager gains no new member: it sets a private bit in the flags it already passes
-  to goToSleepFromPowerButton, which forwards them to PowerManager.goToSleep and so to
-  goToSleepInternal, where the bit is recognised and stripped.
-* Each request carries a generation token; a new arm or accepted user activity bumps it, so a
-  superseded callback cannot act.
-* The token check, the eligibility re-check and the sleep happen in ONE acquisition of mLock.
-* The request's ORIGINAL event time, reason, flags and uid are stored and replayed, so
-  goToSleepNoUpdateLocked's own staleness checks still apply. Substituting "now" and zero
-  flags would silently change which requests get rejected.
-* A timeout request is re-checked against isItBedTimeYetLocked() when it fires: a wake lock
-  taken during the delay, or a changed timeout, generates no user activity.
-* lockNow() is NOT called under mLock. Stock PowerManagerService never invokes
-  WindowManagerPolicy itself -- it hands the policy to Notifier, which calls from its own
-  handler thread -- and lockNow reaches the keyguard over binder. It is posted instead.
-* postDelayed's result is checked. If the looper refuses the message, the pending flag is
-  cleared (otherwise it would suppress every later sleep) and the stock sleep happens inline.
-
-Behaviour is untested on a device; the patch is not installed.
+"""Patch the matching PHH Android 11 services.jar for a dedicated standby overlay.
+PMS holds an eligible button/timeout request while StandbyScreen observes its frame and
+panel completion. An independent 8-second fallback remains on the PMS handler. Every
+sleep decision and cancellation is serialized by mLock; window work never runs there.
+Usage: patch-powerpress.py <PhoneWindowManager.smali> <PowerManagerService.smali>
 """
 import re, sys, os
 
 FLAG = "0x80000000"   # private bit in the goToSleep flags; stripped before anything else sees it
 PMS = "Lcom/android/server/power/PowerManagerService;"
 SLEEPER = "Lcom/android/server/power/InkpalmDelayedSleep;"
-KEYGUARD = "Lcom/android/server/power/InkpalmShowKeyguard;"
+SHOW = "Lcom/android/server/power/InkpalmShowStandby;"
 
 # active request (the one that is pending) + staged request (the one being proposed).
 # Two sets, because the coalescing decision has to happen BEFORE the new values overwrite
 # the pending ones, and passing them as arguments would need registers above v15.
-FIELDS = ('.field private mInkpalmGen:I\n\n'
+FIELDS = ('.field private mInkpalmFiring:Z\n\n'
+          '.field private mInkpalmGen:I\n\n'
           '.field private mInkpalmPending:Z\n\n'
           '.field private mInkpalmIsTimeout:Z\n\n'
           '.field private mInkpalmEventTime:J\n\n'
@@ -59,7 +33,7 @@ FIELDS = ('.field private mInkpalmGen:I\n\n'
 def methods():
     tmpl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              '_pms_methods.tmpl')).read()
-    return tmpl.replace('{PMS}', PMS).replace('{SLEEPER}', SLEEPER).replace('{KEYGUARD}', KEYGUARD) \
+    return tmpl.replace('{PMS}', PMS).replace('{SLEEPER}', SLEEPER).replace('{KEYGUARD}', SHOW) \
                .replace('{{', '{').replace('}}', '}')
 
 
@@ -157,8 +131,21 @@ def patch_pms(p):
         needle = f'    iput-wide p1, p0, {PMS}->{field}:J\n'
         if needle not in s:
             sys.exit(f'{field} write not found -- different framework build?')
-        s = s.replace(needle, needle + f'\n    invoke-direct {{p0}}, {PMS}->inkpalmInvalidate()V\n', 1)
+        callback = (f'    invoke-direct {{p0, p3}}, {PMS}->inkpalmNoChangeLightsActivity(I)V'
+                    if field == 'mLastUserActivityTimeNoChangeLights'
+                    else f'    invoke-direct {{p0}}, {PMS}->inkpalmInvalidate()V')
+        s = s.replace(needle, needle + '\n' + callback + '\n', 1)
         n += 1
+
+    # Wake removes the overlay; an unrelated accepted sleep supersedes pending work.
+    for field, callback in [('mLastWakeTime', 'inkpalmInvalidate'),
+                            ('mLastSleepTime', 'inkpalmOtherSleep')]:
+        matches = list(re.finditer(r'    iput-wide ([pv]\d+), ([pv]\d+), '
+                                  + re.escape(PMS) + f'->{field}:J\n', s))
+        if len(matches) != 1:
+            sys.exit(f'{field}: expected one accepted-transition write')
+        match = matches[0]
+        s = s[:match.end()] + f'\n    invoke-direct {{{match.group(2)}}}, {PMS}->{callback}()V\n' + s[match.end():]
 
     s += methods()
     open(p, 'w').write(s)
@@ -182,7 +169,7 @@ def patch_pwm(p):
         f'    :cond_{label}\n    invoke-direct {{p0, p1, p2, {reg}}}',
         f'    :cond_{label}\n'
         f'    # inkpalm: private flag bit -- ask PowerManagerService for a delayed sleep so the\n'
-        f'    # keyguard reaches the panel first. Nothing else about this call changes.\n'
+        f'    # standby overlay reaches the panel first. Nothing else about this call changes.\n'
         f'    const/high16 {reg}, -{FLAG}\n\n'
         f'    invoke-direct {{p0, p1, p2, {reg}}}', 1)
     s = s[:m.start(2)] + new_block + s[m.end(2):]

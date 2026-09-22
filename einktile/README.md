@@ -33,3 +33,7 @@ both properties per frame (a11/gate15/REFRESH-CONTROL.md), effect is immediate.
 Build: MODE_TEXT=2 MODE_GRAPHICS=132 bash build.sh  (build-tools 34.0.0, platform 27,
 JDK 11; signs using the public AOSP platform key in ../keys).  Output build/einktile.apk.
 Installed 13:41; both services bound (dumpsys activity services).
+
+v5 (2026-09-22): SET_LOCK_WALLPAPER also pins the wallpaper service's desired size to the portrait
+screen (SET_WALLPAPER_HINTS), so a screen-sized wallpaper is never scaled to a launcher's 2x-width
+parallax request. Does not change the keyguard's 10% platform zoom (docs/STANDBY-IMAGE.md).

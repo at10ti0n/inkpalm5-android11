@@ -49,21 +49,22 @@ standby image; `KEEP_CLOCK=1 bash systemui/patch-systemui.sh ...` leaves the clo
 It needs `apktool` 3.x on top of the tools above, and prints the install and rollback
 commands when it finishes.
 
-The framework patch that makes a power press show the lock screen before the display goes
-off is built the same way, from your own `services.jar`:
+The experimental standby framework patch is built from the exact original PHH v313
+`services.jar`. It draws a dedicated image window and waits for presentation/panel-idle
+observations, with an independent timeout. **Installed for testing; not released**;
+see [the stock trace, design and acceptance tests](docs/STANDBY-IMAGE.md).
 
 ```
 adb pull /system/framework/services.jar
-bash framework/patch-services.sh services.jar services-powerpress.jar
+bash framework/patch-services.sh services.jar services-standby.jar
 ```
-It adds two tiny smali classes and edits one case each in `PhoneWindowManager.powerPress`
-and `PowerManagerService.updateWakefulnessLocked` (`framework/patch-powerpress.py` shows
-exactly what). The installer removes the
-precompiled `services.odex` so the patched dex is the one that runs. Re-run it after any GSI update — a GSI flash puts the stock
-SystemUI back.
+The builder checks the original input hash, compiles the render worker, and patches the
+power-button/timeout request interlock and cancellation paths. Stale precompiled services
+artifacts must be backed up and removed for a controlled device trial. A different GSI
+requires a new review; the builder intentionally refuses it.
 
-Collect the outputs into one folder and it is a drop-in replacement for the release
-assets — hand that folder to `install/from-twrp.sh` and `install/from-android.sh` and
+Collect the release outputs (excluding the experimental standby framework) into
+one folder and it is a drop-in replacement for the release assets — hand that folder to `install/from-twrp.sh` and `install/from-android.sh` and
 follow [INSTALL.md](INSTALL.md) from step 1.
 
 ## Doing it by hand
@@ -98,6 +99,7 @@ against the local one.
 
 `services-powerpress.jar` must never be staged there. It is rolled back and deliberately
 unshipped (see [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md) and §3.18 of the
-third-pass notes) and is reproducible from source with `framework/patch-services.sh`. It was
+third-pass notes). The current builder now produces the replacement standby experiment,
+which also must stay out of release assets until device verification. The old delay patch was
 staged by mistake on 2026-09-19 and listed in a local `SHA256SUMS` that no longer matched the
 published one; the release itself never contained it.

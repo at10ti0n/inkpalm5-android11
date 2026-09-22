@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="net.inkpalm.einktile" android:sharedUserId="android.uid.system" android:versionCode="4" android:versionName="4.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="net.inkpalm.einktile" android:sharedUserId="android.uid.system" android:versionCode="5" android:versionName="5.0">
   <uses-permission android:name="android.permission.SET_WALLPAPER"/>
+  <uses-permission android:name="android.permission.SET_WALLPAPER_HINTS"/>
   <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="27"/>
   <application android:label="E-Ink Mode" android:icon="@drawable/ic_tile">
     <service android:name=".ModeTile" android:label="E-Ink Mode" android:icon="@drawable/ic_tile"
