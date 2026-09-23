@@ -65,6 +65,24 @@ settings put secure sysui_qs_tiles \"custom(\$E/.RotationTile),custom(\$E/.ModeT
 echo \"  tiles: \$(settings get secure sysui_qs_tiles)\"
 '" | tr -d '\r'
 
+# Wi-Fi: the 8.1 vendor wpa_supplicant double-frees in its SIGTERM cleanup, which Android 11's
+# allocator turns into a crash and a tombstone at every reboot. wifi/libwpaexit.c makes SIGTERM
+# exit immediately (wifi/README.md). Vendor partition; the original rc is kept in /data/local.
+if [ -f "$A/libwpaexit.so" ]; then
+  say "Wi-Fi daemon: clean exit at shutdown"
+  adb push "$A/libwpaexit.so" /data/local/tmp/libwpaexit.so >/dev/null
+  adb shell "su -c '
+  R=/vendor/etc/init/hw/init.common.rc
+  [ -f /data/local/init.common.rc.stock ] || cp -p \$R /data/local/init.common.rc.stock
+  mount -o rw,remount /vendor
+  cp /data/local/tmp/libwpaexit.so /vendor/lib/libwpaexit.so
+  chmod 644 /vendor/lib/libwpaexit.so; chown 0:0 /vendor/lib/libwpaexit.so; chcon u:object_r:vendor_file:s0 /vendor/lib/libwpaexit.so
+  grep -q libwpaexit \$R || sed -i \"/^service wpa_supplicant /,/^ *oneshot/ s|^\\( *\\)oneshot|\\1oneshot\\n\\1setenv LD_PRELOAD /vendor/lib/libwpaexit.so|\" \$R
+  sync; mount -o ro,remount /vendor; rm -f /data/local/tmp/libwpaexit.so
+  grep -q libwpaexit \$R && echo \"  installed (active after the next reboot)\"
+  '" | tr -d '\r'
+fi
+
 # Screen Temperature = Night Light driving the front light's warm LEDs. Three overlays, all
 # signed with the GSI platform key: the framework one (identity tint, so Night Light no longer
 # darkens the greyscale panel) must be PREINSTALLED in /vendor/overlay -- MEASURED: system_server

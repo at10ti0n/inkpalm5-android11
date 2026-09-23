@@ -15,6 +15,12 @@ settings put system user_rotation 1
 # configs/configure-native.sh. Android 11 persists them, and re-asserting them here at every
 # boot silently overrode the user's own choices (a Bluetooth page turner switched on was off
 # again after each reboot). docs/A11-NATIVE-FEATURES-PROPOSAL.md, item 4.
+# CPU governor: the kernel boots with "performance" (CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE),
+# which holds all four cores at top clock whenever the device is awake -- i.e. while a page is
+# being read. On stock the vendor power HAL's boot-complete hint presumably switched it; Android
+# 11 never sends that vendor hint. MEASURED 2026-09-24: "interactive" idles at 480 MHz within
+# seconds and the HAL's launch hints do not switch it back. One policy covers all four cores.
+echo interactive > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null
 [ -z "$(getprop persist.sys.mRefreshMode)" ] && setprop persist.sys.mRefreshMode 132
 # auto full refresh after N partial updates (HWC updateGu16Refreshlimit); 0 = never (stock)
 [ -z "$(getprop persist.display.gu16_max_limit)" ] && setprop persist.display.gu16_max_limit 10

@@ -31,6 +31,21 @@ cmd uimode night no
 # 2026-09-24: Natural (0) lets individual layers reach the old vendor HWC as DEVICE layers, the
 # 1280x1440 wallpaper overran the mirror's buffers, and the composer crashed in a loop.
 settings put system display_color_mode 1
+# Phone-only and unused apps: disabled for the user (reversible: pm enable <pkg>). Frees memory
+# on this 900 MB low-RAM device, so reading apps are killed and reloaded less often, and removes
+# their alarms (the calendar provider scheduled wake-ups). Clock is kept for alarms; the contacts
+# storage provider is kept because apps may query it. MEASURED 2026-09-24: MemAvailable after
+# boot 444 MB, was 350-395 MB.
+for p in com.android.messaging com.android.dialer com.android.contacts com.android.calendar \
+         com.android.providers.calendar com.android.gallery3d com.android.quicksearchbox \
+         org.chromium.webview_shell com.android.cellbroadcastreceiver com.android.stk \
+         com.android.traceur com.android.printspooler com.android.bips com.android.egg \
+         com.android.dreams.basic; do
+  pm disable-user --user 0 $p >/dev/null 2>&1 || true
+done
+# SystemUI runs from /system but is compiled into /data; after it is replaced (systemui/) it
+# only has "extract"/verify code until background dexopt runs (idle AND charging). Compile it.
+cmd package compile -m speed -f com.android.systemui >/dev/null 2>&1 || true
 # Screen Temperature (Night Light driving the warm LEDs, einktile ScreenTempService): warm level
 # while Night Light is off. 0 = cold light only during the day.
 setprop persist.sys.frontlight.warm_day 0

@@ -195,6 +195,16 @@ under `a11/stock-sleep-review/` outside the export repository.
 The controlled trial is separate from the standard installer and published release.
 No release assets should advertise this behaviour until their integration is reviewed.
 
+## Compiled code for the patched framework (2026-09-24)
+
+Installing the trial moves the original prebuilt `services.odex/.vdex/.art` aside (they belong
+to the original jar). Android 11 then compiles services.jar into /data/dalvik-cache with the
+"verify" filter only, so the whole system server ran interpreted/JIT. Even a "speed" compile in
+/data/dalvik-cache is mapped non-executable by system_server (MEASURED: boot and /system odex
+files are r-xp, the /data one r--p). `tools/install-services-odex.sh` has installd compile it
+with "speed" and places the result as `/system/framework/oat/arm/services.odex/.vdex`, then
+checks for an executable mapping. Rollback moves these aside like the original ones.
+
 ## "The standby image looks zoomed": measured, and left alone
 
 Reported after the trial: the standby image looks zoomed or cropped, reproducible by a
