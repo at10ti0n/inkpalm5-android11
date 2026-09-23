@@ -11,7 +11,7 @@ platform. Nothing here is implemented yet.
 | Boot, display mirror, vsync | `a11boot/` rc + `libhwcflip` preload (mirror, software vsync) | n/a: hardware adaptation |
 | SurfaceFlinger livelock | `patch-sf.py` (in service), `sf-watch.sh` detect + recover | n/a: workaround for a platform/kernel interaction |
 | Front light brightness | replacement lights HAL | **yes**: the stock brightness slider drives it |
-| Front light warmth | Warmth tile (einktile) + warmth slider line (SystemUI patch) + `persist.sys.frontlight.warm` | **no**: Night Light exists but is unused |
+| Front light warmth | Warmth tile (einktile) + warmth slider line (SystemUI patch) + `persist.sys.frontlight.warm` | **no**: Night Light works but only darkens pixels |
 | Refresh mode, full refresh | Mode and Refresh tiles (einktile) | none exists; keep |
 | Rotation | Rotation tile + fixed-to-user rotation | stock tile needs an accelerometer; this device has no sensors |
 | Standby image | lock wallpaper (einktile receiver) + standby overlay trial (services.jar) | **yes**: stock lock wallpaper |
@@ -23,13 +23,15 @@ platform. Nothing here is implemented yet.
 
 ## Measured on the device today
 
-- **Night Light is dead on this build.** Its tile is on the Quick Settings panel and its setting
-  flips, but `dumpsys color_display` reports *Not available* and no color transform reaches
-  SurfaceFlinger. AOSP ties availability to `config_setColorTransformAccelerated`, which is false.
-- **Even if it worked it would be wrong for E Ink.** Night Light tints by scaling green and blue.
-  On a greyscale panel that only darkens: at the default 2850 K, paper white becomes roughly
-  80% grey (R 1.0, G 0.75, B 0.51 by the AOSP coefficients, weighted to luma). No warmth, less
-  contrast. The warmth this device can show comes from the warm LED bank, not from pixels.
+- **Night Light works, and on E Ink it only darkens.** It is available, and when on, SurfaceFlinger
+  applies a display colour matrix. At the current 3030 K the matrix rows sum to red 1.00,
+  green 0.77, blue 0.54, so paper white drops to about 81% grey by luma weighting. No warmth,
+  less contrast. The warmth this device can show comes from the warm LED bank, not from pixels.
+  (An earlier draft of this document said Night Light was unavailable; that misread the
+  "Display white balance: Not available" line of `dumpsys color_display`, and checked per-layer
+  transforms instead of the display matrix.)
+- **"Colors" is set to Boosted** (colour mode 1), so a saturation matrix is applied to every frame
+  even with Night Light off. Its rows sum to 1, so greys are unchanged; it only costs work.
 - **No sensors.** `dumpsys sensorservice` lists none: no accelerometer, no light sensor. Stock
   auto-rotate and adaptive brightness can never work; the stock rotation tile is already absent.
 - **No camera, telephony, NFC or GPS** hardware features; Bluetooth is present.
@@ -47,11 +49,9 @@ platform. Nothing here is implemented yet.
 Turn Night Light into what it means on a reading device: warm front light, with its schedule.
 
 1. **Framework overlay** (extend the existing `overlays/` pattern):
-   `config_nightDisplayAvailable = true`, and both
-   `config_nightDisplayColorTemperatureCoefficients` arrays set to identity
-   (`0, 0, 1` per channel). Night Light then becomes available, the Settings page and tile
-   work, and the matrix it applies is identity, so pixels are untouched and composition stays
-   on the hardware path.
+   both `config_nightDisplayColorTemperatureCoefficients` arrays set to identity
+   (`0, 0, 1` per channel). Night Light keeps its tile, Settings page and schedule, but the
+   matrix it applies becomes identity, so pixels are no longer darkened.
 2. **A small observer** watching `night_display_activated` and
    `night_display_color_temperature`: activated maps the temperature onto the warm bank
    (4082 K to a low warm level, 2596 K to level 24), deactivated returns to a day level
@@ -84,10 +84,11 @@ identity; no GPU composition appears while active; schedule transitions fire whi
 Mechanism: the installer already rewrites `sysui_qs_tiles`; it would write the full intended
 list instead of appending.
 
-### 3. Stop battery saver from forcing dark theme (trivial)
+### 3. Stop battery saver from forcing dark theme, and set Colors to Natural (trivial)
 
 `settings put global battery_saver_constants enable_night_mode=false`, once, in
 `configure-native.sh`. Battery saver keeps all its power measures, minus the inversion.
+Also select Settings, Display, Colors, Natural, which drops the always-on saturation matrix.
 
 ### 4. Let Android remember user choices instead of re-asserting them at boot (small)
 
