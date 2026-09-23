@@ -34,6 +34,13 @@ Build: MODE_TEXT=2 MODE_GRAPHICS=132 bash build.sh  (build-tools 34.0.0, platfor
 JDK 11; signs using the public AOSP platform key in ../keys).  Output build/einktile.apk.
 Installed 13:41; both services bound (dumpsys activity services).
 
+v6 (2026-09-24): the Warmth tile is gone. ScreenTempService (started at boot, sticky, and by the
+tiles as a backstop) follows Android's Night Light -- night_display_activated and
+night_display_color_temperature -- and sets the warm LED level: on = 1..24 from mildest to
+warmest temperature, off = persist.sys.frontlight.warm_day (default 0). Night Light's own tile,
+Settings page and schedule are the UI (renamed Screen Temperature by overlays/screentemp-*).
+Fixed on the way: rapid changes could ratchet brightness up one step (one pending restore now).
+
 v5 (2026-09-22): SET_LOCK_WALLPAPER also pins the wallpaper service's desired size to the portrait
 screen (SET_WALLPAPER_HINTS), so a screen-sized wallpaper is never scaled to a launcher's 2x-width
 parallax request. Does not change the keyguard's 10% platform zoom (docs/STANDBY-IMAGE.md).

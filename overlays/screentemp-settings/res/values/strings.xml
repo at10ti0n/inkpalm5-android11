@@ -1,0 +1,9 @@
+<resources>
+    <!-- Night Light is the Screen Temperature control on this device: it drives the front
+         light's warm LED bank (einktile ScreenTempService, overlays/screentemp-fw). -->
+    <string name="night_display_title">Screen Temperature</string>
+    <string name="condition_night_display_title">Screen Temperature is on</string>
+    <string name="night_display_not_currently_on">Screen Temperature not currently on</string>
+    <string name="night_display_suggestion_title">Set Screen Temperature schedule</string>
+    <string name="night_display_text">Screen Temperature warms the front light. This makes the page easier to read in dim light, and may help you fall asleep more easily. Intensity sets how warm the light is. Sunset to sunrise needs location, which is off on this device; use custom times.</string>
+</resources>

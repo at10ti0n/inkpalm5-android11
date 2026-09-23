@@ -9,6 +9,31 @@ wm set-fix-to-user-rotation enabled
 settings put system accelerometer_rotation 1
 settings put system user_rotation 1
 settings put system screen_off_timeout 120000
+# One-time defaults that Android 11 then remembers (these used to be re-asserted at every boot
+# by a11-boot-fixups.sh, which overrode the user's own later choices).
+settings put global window_animation_scale 0
+settings put global transition_animation_scale 0
+settings put global animator_duration_scale 0
+settings put global stay_on_while_plugged_in 0
+# No GPS on this device; Bluetooth starts off (switch it on for a page turner, it stays on).
+svc bluetooth disable; settings put global bluetooth_on 0
+settings put secure location_mode 0
+settings put global wifi_scan_always_enabled 0; settings put global ble_scan_always_enabled 0
+dumpsys deviceidle enable >/dev/null 2>&1
+# Battery saver keeps its power measures but no longer forces dark theme: on E Ink that is a
+# full-screen inversion with ghosting, exactly when the battery is low.
+settings put global battery_saver_constants enable_night_mode=false
+# Dark theme stays OFF (the GSI default is "auto", which would invert the whole UI at sunset).
+cmd uimode night no
+# Colors stays BOOSTED (1), deliberately. Its saturation matrix leaves greys unchanged, but it
+# makes SurfaceFlinger composite on the GPU into ONE 1280x720 image, which is what the vendor
+# composer + frame mirror (a11boot/libhwcflip.c) were built and validated for. MEASURED
+# 2026-09-24: Natural (0) lets individual layers reach the old vendor HWC as DEVICE layers, the
+# 1280x1440 wallpaper overran the mirror's buffers, and the composer crashed in a loop.
+settings put system display_color_mode 1
+# Screen Temperature (Night Light driving the warm LEDs, einktile ScreenTempService): warm level
+# while Night Light is off. 0 = cold light only during the day.
+setprop persist.sys.frontlight.warm_day 0
 # Doze is OFF: the sleep transition then ends on the keyguard (clock + lock wallpaper),
 # the display goes OFF, and the E Ink panel holds that frame for free -- a stock-style
 # static standby screen. MEASURED 2026-09-19: ~5 panel cycles at sleep entry, 0 while

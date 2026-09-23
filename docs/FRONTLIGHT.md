@@ -149,3 +149,29 @@ binary would silently pin everyone to one GSI image. `patch-systemui.sh` takes *
 Note that `apktool` also folds redundant `-vNN` resource qualifiers on rebuild (about 890
 directories here, e.g. `res/anim-v21` -> `res/anim`); that is expected -- SystemUI's minSdk
 is 30, so those qualifiers always applied anyway.
+
+## Warmth is Night Light now: "Screen Temperature" (2026-09-24)
+
+Android 11's Night Light was available on this build but did the wrong thing for E Ink: it
+scales green and blue in every pixel, so on a greyscale panel it only turned paper white to
+about 81% grey (MEASURED at 3030 K). The warmth this device can show is the LM3630A warm bank.
+Night Light now drives that bank instead, and is presented as **Screen Temperature**:
+
+* `overlays/screentemp-fw` (preinstalled in `/vendor/overlay`, static): both colour-temperature
+  coefficient sets are identity, so Night Light's matrix no longer changes pixels. A /data copy
+  of the same overlay resolved correctly but system_server kept the stock coefficients, so it
+  has to be preinstalled, like the AOD and suspend overlays.
+* `einktile` v6 `ScreenTempService`: follows `night_display_activated` and
+  `night_display_color_temperature`; on = warm level 1..24 (config Max to Min temperature),
+  off = `persist.sys.frontlight.warm_day` (default 0). It writes `persist.sys.frontlight.warm`
+  and nudges brightness so the HAL re-applies; the HAL is unchanged.
+* `overlays/screentemp-settings` / `-systemui`: the name in Settings > Display, its page text,
+  and the Quick Settings tile label.
+* `systemui/WarmthSliderView.java`: the slider row under Brightness now writes Night Light's
+  settings (0 = off, 1..24 = on at that intensity), so row, tile, Settings page and schedule
+  always agree. The Warmth tile is removed.
+
+Verified on the device: Night Light on leaves the display colour matrix unchanged; on at
+3030 K gives warm 17, 2596 K gives 24, 4082 K gives 1, off gives 0; the slider row at mid
+position turns Night Light on at 3371 K (warm 12); Settings shows the renamed entry and page.
+Schedules: custom times only. "Sunset to sunrise" needs location, which the port keeps off.

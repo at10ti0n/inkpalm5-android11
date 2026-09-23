@@ -34,7 +34,12 @@ NDK=$NDK bash a11boot/build-hwcflip.sh build/libhwcflip.so   # HWC2 headers are 
 $NDK/armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wl,-z,now -o lights.virgo.so frontlight/lights_epd105.c -llog
 MODE_TEXT=2 MODE_GRAPHICS=132 bash einktile/build.sh     # -> einktile/build/einktile.apk
 bash overlays/aod/build.sh                               # -> overlays/aod/build/inkpalm-aod.apk
+for o in screentemp-fw screentemp-settings screentemp-systemui; do    # Screen Temperature
+  bash overlays/build-platform-overlay.sh overlays/$o    # -> overlays/$o/build/inkpalm-$o.apk
+done
 ```
+Use JDK 17 for the APK builds on current macOS: JDK 21's class files break build-tools 34's d8,
+and an x86-only JDK no longer starts on Apple silicon without Rosetta.
 
 The Quick Settings warmth slider is built separately, because it patches SystemUI and a
 patched SystemUI only matches the GSI build it came from:
@@ -83,8 +88,10 @@ why each piece is needed.
 | `libhwcflip.so` | `/vendor/lib/` — cancels the vendor composer's frame mirroring |
 | `lights.virgo.so` | `/vendor/lib/hw/` — drives the real LM3630A front light |
 | `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
-| `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, warmth, portrait/landscape (v4) |
-| `SystemUI-warmth.apk` | patched SystemUI: Screen Temperature slider, lock-screen clock hidden (GSI-specific) |
+| `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, portrait/landscape; lock-wallpaper receiver; ScreenTempService, which maps Night Light onto the warm LEDs (v6) |
+| `inkpalm-screentemp-fw.apk` | `/vendor/overlay/` (must be preinstalled) — Night Light tint set to identity, so it no longer greys the panel |
+| `inkpalm-screentemp-settings.apk`, `inkpalm-screentemp-systemui.apk` | ordinary packages — rename Night Light to Screen Temperature; trim the Quick Settings Edit list to this hardware |
+| `SystemUI-warmth.apk` | patched SystemUI: Screen Temperature slider (a front end to Night Light since 2026-09-24), lock-screen clock hidden (GSI-specific) |
 | `services-powerpress.jar` | patched framework: power press and idle timeout show the lock screen, then sleep 800 ms later (GSI-specific). **Not shipped and rolled back on the author's device** pending the SurfaceFlinger investigation -- it adds surface creation to the path implicated in [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). Without it the panel keeps the last app frame through sleep. |
 
 Design notes for all of these are in `docs/`; start with

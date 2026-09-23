@@ -33,7 +33,7 @@ public class RotationTile extends TileService {
         tile.updateTile();
     }
 
-    @Override public void onStartListening() {
+    @Override public void onStartListening() { ScreenTempService.start(this);
         if (!observing) {
             getContentResolver().registerContentObserver(
                     Settings.System.getUriFor(Settings.System.USER_ROTATION), false, observer);

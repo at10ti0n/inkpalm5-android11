@@ -7,24 +7,27 @@ import android.provider.Settings;
 import android.util.AttributeSet;
 import android.widget.SeekBar;
 
-import java.lang.reflect.Method;
-
 /**
- * Front-light warmth as a slider row in the Quick Settings panel, sitting directly under the
- * brightness row (see res/layout/quick_settings_brightness_dialog.xml).
+ * The Screen Temperature row in the Quick Settings panel, directly under brightness
+ * (res/layout/quick_settings_brightness_dialog.xml).
  *
- * Brightness already drives the cold LED bank through the replacement lights HAL
- * (frontlight/lights_epd105.c). That HAL reads the warm bank level from
- * persist.sys.frontlight.warm on every backlight call, so this slider writes the property and
- * then nudges the brightness setting by one step and back, which makes the framework re-issue
- * the backlight call and the HAL re-apply with the new warmth.
+ * Since 2026-09-24 Screen Temperature IS Android 11's Night Light: einktile's
+ * ScreenTempService maps Night Light's state and colour temperature onto the front light's
+ * warm LED bank, and overlays/screentemp-fw makes Night Light's pixel tint identity (on a
+ * greyscale panel the tint only darkened). This row is therefore a front end to Night Light
+ * rather than to the LED property, so it always agrees with the Screen Temperature tile, the
+ * Settings page and the schedule:
+ *
+ *   position 0      Night Light off
+ *   position 1..24  Night Light on, temperature from config Max (1, mildest) to Min (24, warmest)
  *
  * The view wires itself up in its constructor, so no QSPanel patch is needed and it carries no
  * resource id of its own -- nothing in the SystemUI resource table changes.
  */
 public class WarmthSliderView extends SeekBar implements SeekBar.OnSeekBarChangeListener {
 
-    private static final String PROP = "persist.sys.frontlight.warm";
+    private static final String ACTIVATED = "night_display_activated";
+    private static final String TEMP = "night_display_color_temperature";
     private static final int MAX_LEVEL = 24;
     private static final long THROTTLE_MS = 300L;
 
@@ -50,39 +53,36 @@ public class WarmthSliderView extends SeekBar implements SeekBar.OnSeekBarChange
 
     private static int clamp(int v) { return v < 0 ? 0 : (v > MAX_LEVEL ? MAX_LEVEL : v); }
 
-    private static int readLevel() {
-        try { return clamp(Integer.parseInt(getProp(PROP))); } catch (Exception e) { return 0; }
+    private static int sysInt(String name, int dflt) {
+        android.content.res.Resources r = android.content.res.Resources.getSystem();
+        int id = r.getIdentifier(name, "integer", "android");
+        try { return id != 0 ? r.getInteger(id) : dflt; } catch (Exception e) { return dflt; }
+    }
+    private static int tMin() { return sysInt("config_nightDisplayColorTemperatureMin", 2596); }
+    private static int tMax() { return sysInt("config_nightDisplayColorTemperatureMax", 4082); }
+
+    private int readLevel() {
+        ContentResolver cr = getContext().getContentResolver();
+        if (Settings.Secure.getInt(cr, ACTIVATED, 0) != 1) return 0;
+        int min = tMin(), max = tMax();
+        int t = Settings.Secure.getInt(cr, TEMP, sysInt("config_nightDisplayColorTemperatureDefault", 2850));
+        if (max <= min) return MAX_LEVEL;
+        float f = (float) (max - Math.max(min, Math.min(max, t))) / (max - min);
+        return clamp(1 + Math.round(f * (MAX_LEVEL - 1)));
     }
 
-    private static String getProp(String key) {
-        try {
-            Class<?> c = Class.forName("android.os.SystemProperties");
-            Method m = c.getMethod("get", String.class, String.class);
-            return (String) m.invoke(null, key, "0");
-        } catch (Exception e) { return "0"; }
-    }
-
-    private static void setProp(String key, String value) {
-        try {
-            Class<?> c = Class.forName("android.os.SystemProperties");
-            Method m = c.getMethod("set", String.class, String.class);
-            m.invoke(null, key, value);
-        } catch (Exception e) { /* permissive init allows this; ignore if it ever does not */ }
-    }
-
-    /** Write the level, then make the framework re-issue the backlight call. */
+    /** Level 0 turns Night Light off; 1..24 sets its temperature and turns it on. */
     private void apply(int level) {
-        setProp(PROP, String.valueOf(level));
+        ContentResolver cr = getContext().getContentResolver();
         try {
-            final ContentResolver cr = getContext().getContentResolver();
-            final int cur = Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS, 100);
-            final int bump = cur >= 255 ? cur - 1 : cur + 1;
-            Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, bump);
-            mHandler.postDelayed(new Runnable() {
-                public void run() {
-                    Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, cur);
-                }
-            }, 200L);
+            if (level <= 0) {
+                Settings.Secure.putInt(cr, ACTIVATED, 0);
+            } else {
+                int min = tMin(), max = tMax();
+                int t = max - Math.round((float) (level - 1) * (max - min) / (MAX_LEVEL - 1));
+                Settings.Secure.putInt(cr, TEMP, t);
+                if (Settings.Secure.getInt(cr, ACTIVATED, 0) != 1) Settings.Secure.putInt(cr, ACTIVATED, 1);
+            }
         } catch (Exception e) { /* nothing else to do */ }
         mLastApply = System.currentTimeMillis();
         mPendingApply = false;

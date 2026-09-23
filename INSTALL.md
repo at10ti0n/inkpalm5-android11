@@ -127,7 +127,7 @@ Nothing here is required, it is just what makes it a good reader:
 | | |
 |---|---|
 | **Brightness** | the **Brightness** slider in Quick Settings. All the way down = light off. |
-| **Warmth** | the **Screen Temperature** slider, right under Brightness: Cool ↔ Warm. |
+| **Warmth** | **Screen Temperature** (Android's Night Light, driving the warm LEDs): the tile, the slider under Brightness (all the way to Cool = off), or Settings > Display > Screen Temperature for intensity and a schedule (custom times). |
 | **Text / Graphics** | the **Mode** tile — Text is faster and greyer, Graphics is slower and cleaner. Same two modes stock had. |
 | **Clear ghosting** | the **Refresh** tile does one full flash. |
 | **Page turns** | volume keys (Vol Down = Space, Vol Up = D-pad left) — works in Kindle and browsers. |
@@ -214,7 +214,7 @@ is still caught.
   patched SystemUI only matches the exact GSI build it was built from, so step 7 installs it
   **only** if the SystemUI on your device is byte-for-byte that build — any other GSI is left
   untouched and the step says so. Everything else, brightness included, works on any GSI;
-  you also still get the **Warmth** tile. To get the slider on a different GSI, build one
+  Screen Temperature still works from its tile and from Settings > Display. To get the slider on a different GSI, build one
   against your own SystemUI with `systemui/patch-systemui.sh` ([BUILDING.md](BUILDING.md)).
   Reflashing or updating the GSI later reverts it — re-run the patch.
 

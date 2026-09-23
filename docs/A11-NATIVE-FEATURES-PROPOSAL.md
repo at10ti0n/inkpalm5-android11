@@ -2,7 +2,8 @@
 
 2026-09-24. A review of what the port adds on top of Android 11, measured against what
 Android 11 already provides, with a proposal for where the port should hand work back to the
-platform. Nothing here is implemented yet.
+platform. **Implemented the same day**; see "Status" at the end for what shipped, what changed
+from the proposal, and one proposal that was withdrawn after it crashed the composer.
 
 ## What the port does today
 
@@ -110,3 +111,25 @@ Keep the per-boot user-rotation re-assertion, which fixes a real app behaviour.
 
 Items 3 and 4 first (settings only, reversible, no rebuild). Then item 2 together with item 1,
 since removing the Warmth tile only makes sense once Night Light drives the LED.
+
+## Status (2026-09-24, implemented and verified on the device)
+
+| Item | Result |
+|---|---|
+| 1. Night Light as the warmth control | **Done, as "Screen Temperature".** Night Light's tile, Settings > Display page and schedule drive the warm LEDs; the pixel tint is identity; the QS slider row is a front end to Night Light; the Warmth tile is gone. Details: [FRONTLIGHT.md](FRONTLIGHT.md). |
+| 2. Quick Settings trimmed | **Done.** Orientation, Mode, Refresh, Wi-Fi, Bluetooth, DND, Battery Saver, Airplane, Screen Temperature. The Edit list offers only tiles this hardware can use. |
+| 3. Battery saver without dark theme | **Done.** Also dark theme set to stay off: the GSI default "auto" would have inverted the UI at sunset. |
+| 3b. Colors: Natural | **Withdrawn.** It crashed the composer; see below. Colors stays Boosted. |
+| 4. Settings persisted, not re-asserted at boot | **Done.** Bluetooth, location, scanning and animation defaults are set once by `configure-native.sh`; the boot script keeps only the rotation fix and the refresh-mode defaults. |
+| 5. Leave as is | Unchanged: Mode, Refresh, Orientation tiles, hidden lock-screen clock, standby overlay. |
+
+**Why Colors must stay Boosted.** "Boosted" applies a saturation matrix, which the vendor
+composer cannot do in hardware, so SurfaceFlinger composites everything on the GPU into one
+1280x720 image. That is the only input the frame mirror (`a11boot/libhwcflip.c`) was built and
+validated for. With Natural the matrix disappears, individual layers reach the old vendor
+composer directly (verified: the lock screen's layers switch from CLIENT to DEVICE), and at
+boot the 1280x1440 wallpaper buffer overran the mirror's 1280x720 buffers: three composer
+crashes in memcpy and repeated framework restarts. The mirror now refuses any buffer larger than
+its own (logged as `vendor.hwcflip.toobig`) instead of overrunning, so choosing Natural in
+Settings can no longer crash it, but layers composed that way are not mirrored and would show
+wrongly. Leave Colors on Boosted.

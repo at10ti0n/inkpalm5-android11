@@ -1,0 +1,9 @@
+<resources>
+    <string name="quick_settings_night_display_label">Screen Temperature</string>
+    <!-- Tiles offered in Quick Settings Edit. Dropped for this hardware (MEASURED 2026-09-24:
+         no telephony, camera/flash, GPS, NFC or sensors): cell, flashlight, rotation (needs an
+         accelerometer; einktile's Orientation tile replaces it), location, hotspot, inversion,
+         saver (data saver), work, cast, screenrecord, reverse. -->
+    <string name="quick_settings_tiles_stock" translatable="false">wifi,battery,dnd,bt,airplane,dark,night</string>
+    <string name="quick_settings_tiles_default" translatable="false">wifi,bt,dnd,battery,airplane,night</string>
+</resources>

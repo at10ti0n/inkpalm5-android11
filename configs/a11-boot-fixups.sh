@@ -11,18 +11,13 @@ n=0; while [ "$(getprop init.svc.surfaceflinger)" != running ] && [ $n -lt 30 ];
 # persists across reboots. MEASURED 2026-09-18: running KOReader left user_rotation=0.
 # One bounded write, no polling; fixed-to-user-rotation still does the real work.
 settings put system user_rotation 1
-settings put global window_animation_scale 0
-settings put global transition_animation_scale 0
-settings put global animator_duration_scale 0
-settings put global stay_on_while_plugged_in 0
+# Animations, Bluetooth, location, scanning and battery-saver defaults are set ONCE by
+# configs/configure-native.sh. Android 11 persists them, and re-asserting them here at every
+# boot silently overrode the user's own choices (a Bluetooth page turner switched on was off
+# again after each reboot). docs/A11-NATIVE-FEATURES-PROPOSAL.md, item 4.
 [ -z "$(getprop persist.sys.mRefreshMode)" ] && setprop persist.sys.mRefreshMode 132
 # auto full refresh after N partial updates (HWC updateGu16Refreshlimit); 0 = never (stock)
 [ -z "$(getprop persist.display.gu16_max_limit)" ] && setprop persist.display.gu16_max_limit 10
-# battery (2026-09-17): no BT peripherals, no GPS on this device, keep radios/scanning off
-svc bluetooth disable; settings put global bluetooth_on 0
-settings put secure location_mode 0
-settings put global wifi_scan_always_enabled 0; settings put global ble_scan_always_enabled 0
-dumpsys deviceidle enable >/dev/null 2>&1
 # FUSE storage: vold creates /mnt/user/0/primary itself on the sdcardfs path but not on the
 # FUSE one here, and /sdcard -> /storage/self/primary -> /mnt/user/0/primary, so without it
 # /sdcard does not resolve at all. See a11boot/a11-prepend.rc for the mount points.

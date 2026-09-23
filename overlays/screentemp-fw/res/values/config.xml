@@ -1,0 +1,17 @@
+<resources>
+    <!-- Screen Temperature = Night Light driving the front light's warm LED bank
+         (einktile ScreenTempService). On a greyscale E Ink panel the stock pixel tint only
+         darkens (white to ~81% grey at 3030 K, MEASURED 2026-09-24), so both coefficient
+         sets are identity: Night Light keeps its tile, Settings page and schedule, and applies
+         an identity matrix. Per channel: a (T^2), b (T), intercept. -->
+    <string-array name="config_nightDisplayColorTemperatureCoefficients">
+        <item>0.0</item><item>0.0</item><item>1.0</item>
+        <item>0.0</item><item>0.0</item><item>1.0</item>
+        <item>0.0</item><item>0.0</item><item>1.0</item>
+    </string-array>
+    <string-array name="config_nightDisplayColorTemperatureCoefficientsNative">
+        <item>0.0</item><item>0.0</item><item>1.0</item>
+        <item>0.0</item><item>0.0</item><item>1.0</item>
+        <item>0.0</item><item>0.0</item><item>1.0</item>
+    </string-array>
+</resources>

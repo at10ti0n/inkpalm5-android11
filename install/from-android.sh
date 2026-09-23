@@ -55,19 +55,42 @@ echo \"  input configs installed\"
 
 say "installing the E-Ink tiles app"
 adb install -r "$A/einktile.apk"
+# The full Quick Settings panel for an E Ink reader (docs/A11-NATIVE-FEATURES-PROPOSAL.md):
+# Orientation, Mode, Refresh, Wi-Fi, Bluetooth, DND, Battery Saver, Airplane, Screen Temperature
+# (the stock Night Light tile, renamed). Cast, Screen Record, Dark theme and phh's debug tile
+# are not on it; overlays/screentemp-systemui also trims the Edit list to this hardware.
 adb shell "su -c '
-T=\$(settings get secure sysui_qs_tiles)
-for t in ModeTile RefreshTile WarmthTile RotationTile; do
-  case \"\$T\" in *\$t*) ;; *) T=\"\$T,custom(net.inkpalm.einktile/.\$t)\";; esac
-done
-settings put secure sysui_qs_tiles \"\$T\"
-echo \"  tiles: \$(settings get secure sysui_qs_tiles | tr , \"\n\" | grep -c einktile) registered\"
+E=net.inkpalm.einktile
+settings put secure sysui_qs_tiles \"custom(\$E/.RotationTile),custom(\$E/.ModeTile),custom(\$E/.RefreshTile),wifi,bt,dnd,battery,airplane,night\"
+echo \"  tiles: \$(settings get secure sysui_qs_tiles)\"
 '" | tr -d '\r'
+
+# Screen Temperature = Night Light driving the front light's warm LEDs. Three overlays, all
+# signed with the GSI platform key: the framework one (identity tint, so Night Light no longer
+# darkens the greyscale panel) must be PREINSTALLED in /vendor/overlay -- MEASURED: system_server
+# ignores /data overlays for its own resources on Android 11; the Settings and SystemUI ones
+# (the "Screen Temperature" name, the trimmed tile list) work as ordinary packages.
+say "Screen Temperature (Night Light -> warm LEDs)"
+for o in screentemp-settings screentemp-systemui; do
+  [ -f "$A/inkpalm-$o.apk" ] && adb install -r "$A/inkpalm-$o.apk" | tail -1
+done
+if [ -f "$A/inkpalm-screentemp-fw.apk" ]; then
+  adb push "$A/inkpalm-screentemp-fw.apk" /data/local/tmp/inkpalm-screentemp.apk >/dev/null
+  adb shell "su -c '
+  mount -o rw,remount /vendor
+  cp /data/local/tmp/inkpalm-screentemp.apk /vendor/overlay/inkpalm-screentemp.apk
+  chmod 644 /vendor/overlay/inkpalm-screentemp.apk; chown 0:0 /vendor/overlay/inkpalm-screentemp.apk
+  chcon u:object_r:vendor_overlay_file:s0 /vendor/overlay/inkpalm-screentemp.apk
+  sync; mount -o ro,remount /vendor; rm -f /data/local/tmp/inkpalm-screentemp.apk
+  cmd overlay enable --user 0 net.inkpalm.overlay.screentemp.settings
+  cmd overlay enable --user 0 net.inkpalm.overlay.screentemp.systemui
+  echo \"  overlays installed (the framework one takes effect after the next reboot)\"
+  '" | tr -d '\r'
+fi
 
 say "applying the native configuration (portrait, AOD, timeouts, radios off)"
 adb shell "su -c 'sh /sdcard/configure-native.sh && rm -f /sdcard/configure-native.sh && echo \"  configure-native done\"'" | tr -d '\r'
 adb shell "su -c 'sh /data/local/a11-boot-fixups.sh; echo \"  startup settings applied\"'" | tr -d '\r'
-adb shell "su -c 'setprop persist.sys.frontlight.warm 10'"
 
 # Standby image: with doze off the device sleeps on the keyguard and the E Ink panel keeps
 # that frame, so the lock-screen wallpaper IS the standby screen. Android 11 has no shell

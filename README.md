@@ -69,10 +69,14 @@ review with the remaining native proposals in `docs/REVIEW-NATIVE-PASSES.md`, an
 pass (system-UID tiles, telephony, wake sources) in `docs/NATIVE-A11-THIRD-PASS.md`.
 
 ## Front light (brightness + warmth)
-Brightness is the normal Android slider; **warmth is a second slider line right under it in
-Quick Settings**. `frontlight/` replaces the vendor lights HAL module, which drove an LCD
-backlight path that goes nowhere on this board, and `systemui/` patches the warmth line into
-the QS panel (a tile cannot draw a slider). See [docs/FRONTLIGHT.md](docs/FRONTLIGHT.md).
+Brightness is the normal Android slider. **Warmth is Android's own Night Light, renamed Screen
+Temperature**: its tile, its page in Settings > Display (with intensity and an on/off
+schedule) and a slider line under Brightness in Quick Settings all drive the front light's warm
+LEDs instead of tinting pixels, which on a greyscale panel only made the page greyer.
+`frontlight/` replaces the vendor lights HAL module, which drove an LCD backlight path that
+goes nowhere on this board; einktile's ScreenTempService maps Night Light onto the warm bank;
+`overlays/screentemp-*` neutralise the tint and rename the feature. See
+[docs/FRONTLIGHT.md](docs/FRONTLIGHT.md) and [docs/A11-NATIVE-FEATURES-PROPOSAL.md](docs/A11-NATIVE-FEATURES-PROPOSAL.md).
 
 ![warmth slider](docs/images/qs-warmth-slider.png)
 
