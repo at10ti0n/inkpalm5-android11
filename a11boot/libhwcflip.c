@@ -95,6 +95,13 @@ static void fix_layer(uint8_t *cfg){
     if(fd<=0||!bpp||w==0||h==0||w>4096||h>4096){ if(g_calls<=3) lg("skip: fd=%u fmt=0x%x w=%u h=%u",(unsigned)fd,fmt,w,h); return; }
     size_t stride=(size_t)w*bpp, len=stride*h;
     if(!shadow_init(len)){ g_shadowfail++; probe("vendor.hwcflip.shadowfail",g_shadowfail); return; }
+    /* The shadows are sized once, from the first frame (1280x720x4 in practice). A LARGER buffer
+     * must never be copied into them: MEASURED 2026-09-24, with Settings > Colors = Natural the
+     * saturation matrix disappears, SurfaceFlinger hands the vendor HWC individual DEVICE layers,
+     * and the 1280x1440 wallpaper overran a shadow -> SIGSEGV in memcpy, composer restart loop,
+     * framework restarts. Leave such a layer unmirrored (counted, logged) instead of crashing. */
+    if(len>g_sh[0].len){ static unsigned big; big++; probe("vendor.hwcflip.toobig",big);
+        if(big<=3) lg("skip oversize layer #%u: %ux%u needs %u bytes",big,w,h,(unsigned)len); return; }
     void *m=mmap(0,len,PROT_READ,MAP_SHARED,fd,0);
     if(m!=MAP_FAILED){ unsigned i=g_shi; g_shi=(g_shi+1)%NSHADOW; flip_rows_copy(m,g_sh[i].map,w,h,bpp,stride); munmap(m,len); int nfd=g_sh[i].fd; memcpy(cfg+32,&nfd,4); g_flipped++; if(g_flipped%50==1) probe("vendor.hwcflip.flipped",g_flipped); } else probe("vendor.hwcflip.mmapfail",g_calls);
     if(sw && sx+sw<=1280){ uint32_t nx=1280-sx-sw; memcpy(cfg+8,&nx,4); }   /* mirror screen_win.x */
