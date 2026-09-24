@@ -1,4 +1,17 @@
-# Incident: a fully compiled framework made the device much slower (2026-09-24, reverted)
+# Incident: slowdown after installing a compiled framework (2026-09-24, reverted; cause not established)
+
+> **Outcome of the follow-up diagnosis** ([DIAGNOSIS-FRAMEWORK-COMPILE.md](DIAGNOSIS-FRAMEWORK-COMPILE.md),
+> read-only, 2026-09-25): the compiled framework is **not established** as the cause. The GSI's
+> own prebuilt services.odex, which the standby trial displaced, was already a full `speed`
+> compile of the same size (25.7 MB, plus a 2.1 MB app image), and the device ran it from
+> 09-17 to 09-22 with fault and kswapd levels matching the uncompiled era. Both incident windows
+> were 7-14 min after a framework restart, with Kindle and WebView resident. During the 23:29 ANR
+> *every* process faulted (system_server 1,323, SystemUI 793, Kindle 409) at 7.6% total CPU:
+> global memory reclaim, not one file. Quiet samples 15-25 min after the revert were normal
+> (MemAvailable 346-370 MB, system_server 1-2 major faults per 120 s). Best reading: a
+> post-restart memory transient, to which the odex added perhaps 10-15 MB of file-backed
+> working set. The revert stands (verify+JIT is not measurably slow here), and the sections
+> below are kept as written at the time, with corrections noted.
 
 ## Summary
 
@@ -87,9 +100,9 @@ separate these.
 eMMC as it executes. Under the JIT, only hot methods get compiled, into a small anonymous code
 cache that swaps to zram (RAM-speed), not eMMC. With Kindle holding about 200 MB, the kernel keeps
 evicting the clean, file-backed odex pages (cheapest to drop), and system_server immediately
-faults them back in from storage: thrash. AOSP's own choice for low-RAM devices is consistent
-with this. System-server jars compiled on /data default to `verify`, and low-RAM builds
-generally prefer `speed-profile` (hot methods only) or less over full `speed`.
+faults them back in from storage: thrash. *(Corrected: this was wrong. The AOSP build preopts system-server jars
+with `speed` regardless of RAM. `verify` in the zygote route exists because system_server will not
+execute code from /data, not to save memory. See the diagnosis, section 9.)*
 
 Two mechanisms found along the way, useful for any future attempt:
 
