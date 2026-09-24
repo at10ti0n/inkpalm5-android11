@@ -8,7 +8,8 @@ reported the device was "much slower". Kindle stopped responding twice, the kern
 reclaim ran continuously, and the system server re-read evicted code from storage. It was
 reverted about 30 minutes later, with a /data-only change.
 
-**Status:** reverted. `system_server` loads the verify-only /data copy again. The
+**Status:** reverted, but **the revert has not been shown to fix the slowdown** (see "After the
+revert"); the cause is not established. `system_server` loads the verify-only /data copy again. The
 `/system/framework/oat/arm/services.{odex,vdex}` files are still present but unused, because
 system_server prefers the /data copy (see below). Remove them to finish the cleanup (needs a
 /system write).
@@ -58,7 +59,29 @@ Ruled out on the way:
 - **iowait / load average.** Two kernel threads (`eink pixel proc`, `usb-hardware-sc`) sleep in
   uninterruptible `msleep` permanently, and inflate load and iowait on every boot. It is not real I/O.
 
-## Why it happened (best explanation; the revert is the test)
+## After the revert (measured 23:38-23:40)
+
+120 s starting ~20 s after the framework restart that applied the revert:
+
+| | During the 23:29 ANR | After the revert |
+|---|---|---|
+| system_server major faults | 1,323 in 20.7 s (~64/s) | 901 in 120 s (~7.5/s) |
+| kswapd0 CPU | 10-11% | ~14% |
+| swap-outs | -- | 56,084 pages in 120 s |
+| MemAvailable | 245 MB (23:23) | 193 MB |
+
+Lower fault rate, but memory reclaim just as busy. Confounded: every app restarts cold after a
+framework restart, and a read-only diagnosis (heavy `dumpsys meminfo`) ran in the same window.
+So the explanation below is a **hypothesis**, not a finding.
+
+A second suspect, omitted from the first version of this document: earlier the same day
+**SystemUI**, a persistent process, was compiled with the same full `speed` filter
+(`cmd package compile -m speed -f com.android.systemui`, about a 15 MB oat, previously
+"extract"). Same pattern, applied to an always-resident process. Other changes that day: CPU
+governor `interactive`, 15 apps disabled, front-light HAL. A follow-up diagnosis was started to
+separate these.
+
+## Why it happened (hypothesis; see above)
 
 `speed` compiles every method of services.jar: 25 MB of native code that has to be paged in from
 eMMC as it executes. Under the JIT, only hot methods get compiled, into a small anonymous code
