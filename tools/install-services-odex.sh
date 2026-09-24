@@ -1,4 +1,8 @@
 #!/system/bin/sh
+# DO NOT USE (2026-09-24): a full "speed" framework compile made this 900 MB device much slower
+# (memory thrash, app ANRs) and was reverted. Kept only as a record; see
+# docs/INCIDENT-SERVICES-ODEX.md.
+echo "install-services-odex.sh is withdrawn; see docs/INCIDENT-SERVICES-ODEX.md" >&2; exit 1
 # Give the patched framework (services.jar) ahead-of-time compiled code again.  Run as root on
 # the device:  su -c 'sh /data/local/tmp/install-services-odex.sh'
 #
