@@ -83,6 +83,22 @@ if [ -f "$A/libwpaexit.so" ]; then
   '" | tr -d '\r'
 fi
 
+# No modem: config_mobile_data_capable=false (overlays/nomodem), so Android creates no phone/RIL
+# and the phone process stops waiting on the IRadio HAL that rild (stopped by the boot fixups)
+# would provide. Static framework overlay: must be preinstalled in /vendor/overlay.
+if [ -f "$A/inkpalm-nomodem.apk" ]; then
+  say "no-modem overlay"
+  adb push "$A/inkpalm-nomodem.apk" /data/local/tmp/inkpalm-nomodem.apk >/dev/null
+  adb shell "su -c '
+  mount -o rw,remount /vendor
+  cp /data/local/tmp/inkpalm-nomodem.apk /vendor/overlay/inkpalm-nomodem.apk
+  chmod 644 /vendor/overlay/inkpalm-nomodem.apk; chown 0:0 /vendor/overlay/inkpalm-nomodem.apk
+  chcon u:object_r:vendor_overlay_file:s0 /vendor/overlay/inkpalm-nomodem.apk
+  sync; mount -o ro,remount /vendor; rm -f /data/local/tmp/inkpalm-nomodem.apk
+  echo \"  installed (active after the next reboot)\"
+  '" | tr -d '\r'
+fi
+
 # Screen Temperature = Night Light driving the front light's warm LEDs. Three overlays, all
 # signed with the GSI platform key: the framework one (identity tint, so Night Light no longer
 # darkens the greyscale panel) must be PREINSTALLED in /vendor/overlay -- MEASURED: system_server

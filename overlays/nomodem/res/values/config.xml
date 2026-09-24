@@ -1,0 +1,11 @@
+<resources>
+    <!-- This device has no modem (MEASURED: no telephony feature, ro.radio.noril=true). The vendor
+         manifest still declares android.hardware.radio IRadio/slot1, whose provider rild is stopped
+         by the boot fixups (it retried a missing modem node every 2 s). With voice and SMS already
+         off, this one flag made TelephonyManager.getActiveModemCount() return 1, so the phone
+         process built a RIL and waited on IRadio.getService forever: an ANR twice at every boot and
+         a 1 Hz "Trying again for android.hardware.radio" loop (843 lines in ~45 min). With all
+         three false and no multi-SIM config, the count is 0: the standard Wi-Fi-only tablet setup.
+         Must be preinstalled and static (system_server ignores /data framework overlays). -->
+    <bool name="config_mobile_data_capable">false</bool>
+</resources>

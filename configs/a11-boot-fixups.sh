@@ -21,6 +21,9 @@ settings put system user_rotation 1
 # 11 never sends that vendor hint. MEASURED 2026-09-24: "interactive" idles at 480 MHz within
 # seconds and the HAL's launch hints do not switch it back. One policy covers all four cores.
 echo interactive > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null
+# Swap: prefer compressing idle anonymous memory into zram (688 MB, lz4, ~3.4:1) over evicting
+# file-backed code pages, which then have to be re-read from eMMC. docs/DIAGNOSIS-FRAMEWORK-COMPILE.md
+echo 100 > /proc/sys/vm/swappiness 2>/dev/null
 [ -z "$(getprop persist.sys.mRefreshMode)" ] && setprop persist.sys.mRefreshMode 132
 # auto full refresh after N partial updates (HWC updateGu16Refreshlimit); 0 = never (stock)
 [ -z "$(getprop persist.display.gu16_max_limit)" ] && setprop persist.display.gu16_max_limit 10

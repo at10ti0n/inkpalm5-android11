@@ -35,7 +35,7 @@ $NDK/armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wl,-z,now -o lights.vir
 MODE_TEXT=2 MODE_GRAPHICS=132 bash einktile/build.sh     # -> einktile/build/einktile.apk
 bash overlays/aod/build.sh                               # -> overlays/aod/build/inkpalm-aod.apk
 $NDK/armv7a-linux-androideabi27-clang -shared -fPIC -O2 -o build/libwpaexit.so wifi/libwpaexit.c -ldl   # Wi-Fi shutdown crash
-for o in screentemp-fw screentemp-settings screentemp-systemui; do    # Screen Temperature
+for o in screentemp-fw screentemp-settings screentemp-systemui nomodem; do    # Screen Temperature; no-modem
   bash overlays/build-platform-overlay.sh overlays/$o    # -> overlays/$o/build/inkpalm-$o.apk
 done
 ```
@@ -91,6 +91,7 @@ why each piece is needed.
 | `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
 | `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, portrait/landscape; lock-wallpaper receiver; ScreenTempService, which maps Night Light onto the warm LEDs (v6) |
 | `libwpaexit.so` | `/vendor/lib/` + a `setenv LD_PRELOAD` line in the vendor Wi-Fi service — the Wi-Fi daemon exits cleanly at shutdown instead of crashing ([wifi/README.md](wifi/README.md)) |
+| `inkpalm-nomodem.apk` | `/vendor/overlay/` (must be preinstalled) — declares no mobile data, so Android creates no phone/RIL; ends the phone process's endless wait for the radio HAL (two ANRs at every boot) |
 | `inkpalm-screentemp-fw.apk` | `/vendor/overlay/` (must be preinstalled) — Night Light tint set to identity, so it no longer greys the panel |
 | `inkpalm-screentemp-settings.apk`, `inkpalm-screentemp-systemui.apk` | ordinary packages — rename Night Light to Screen Temperature; trim the Quick Settings Edit list to this hardware |
 | `SystemUI-warmth.apk` | patched SystemUI: Screen Temperature slider (a front end to Night Light since 2026-09-24), lock-screen clock hidden (GSI-specific) |
