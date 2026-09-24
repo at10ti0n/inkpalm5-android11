@@ -13,5 +13,7 @@ Measured on the device first; each change is reversible.
 | 6 | Wi-Fi daemon exits cleanly at shutdown | Tombstone at every reboot: double free in the 8.1 daemon's SIGTERM cleanup, fatal under Android 11's Scudo. Fixed by a preload; a reboot then wrote none. | `wifi/`, `install/from-android.sh` |
 
 Not done here: an unplugged drain measurement before/after item 1 (needs the device off the
-cable for 30-60 min; on USB it never suspends), and removing the extra compositor restart per
-boot (needs a boot image built from the current `a11boot/a11-prepend.rc`).
+cable for 30-60 min; on USB it never suspends), The extra compositor restart per boot is gone since
+2026-09-25: a boot image built from the current `a11boot/a11-prepend.rc` (sha256 `8b3be428...`,
+from pristine stock) bind-mounts the SurfaceFlinger patch at `post-fs-data`. Verified: SurfaceFlinger
+started once with the patched library, the boot script reported "already in service", no ANRs.
