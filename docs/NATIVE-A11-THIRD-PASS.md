@@ -174,7 +174,7 @@ KOReader also stays letterboxed (it renders a landscape-shaped surface);
 `force_resizable_activities=1` widens it to full width but does not fix the height.
 
 **Page keys.** Measured across all three readers, no single forward key works everywhere --
-see quirk 11. `.kl` now sends `DPAD_RIGHT` on Vol Down so Kindle and KOReader both page.
+see quirk 11. `.kl` now sends `DPAD_RIGHT` on Vol Down so Kindle and KOReader both page. *(Superseded 2026-09-24: the side buttons are plain volume keys again; Kindle and KOReader page with them through their own settings. See README quirk 11.)*
 
 ## 3.13 The kernel already has FUSE -- no kernel work is needed (CORRECTION)
 Investigating whether an updated kernel was needed for Android 11 storage, `/proc/config.gz`

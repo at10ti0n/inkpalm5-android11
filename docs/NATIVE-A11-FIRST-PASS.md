@@ -36,7 +36,7 @@ The shipped startup script no longer writes either rotation setting or polls the
 
 ## Independent key layouts
 
-`sunxi-keyboard.kl` keeps Vol Down = SPACE and Vol Up = DPAD_LEFT, plus ENTER/HOME/MENU.
+`sunxi-keyboard.kl` keeps Vol Down = SPACE and Vol Up = DPAD_LEFT, plus ENTER/HOME/MENU. *(Superseded 2026-09-24: the side buttons are plain volume keys again; Kindle and KOReader page with them through their own settings. See README quirk 11.)*
 `pmu1736-powerkey.kl` contains POWER WAKE. The logo layout is unchanged.
 
 Remove the old `Vendor_0001_Product_0001.kl` from the active lookup paths after backing

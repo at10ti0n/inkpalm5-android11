@@ -1,14 +1,10 @@
-# EPD105 sunxi-keyboard: reader page keys, selected by input device name.
+# EPD105 sunxi-keyboard, selected by input device name.
 #
-# MEASURED 2026-09-18 -- no single forward-page key suits all three readers:
-#   key         Kindle   KOReader   EinkBro
-#   SPACE       yes      NO         yes
-#   DPAD_RIGHT  yes      yes        NO
-#   PAGE_DOWN   NO       yes        yes
-# DPAD_RIGHT is chosen so both readers page from the hardware key; EinkBro pages
-# by tap/swipe instead. DPAD_LEFT goes back in Kindle and KOReader both.
-key 115   DPAD_LEFT         # Vol Up   = previous page (Kindle, KOReader)
-key 114   DPAD_RIGHT        # Vol Down = next page (Kindle, KOReader)
+# Volume keys are plain volume keys again (2026-09-24): Kindle and KOReader both have their own
+# "turn pages with volume keys" option, which is the better route than a system-wide remap
+# (the earlier D-pad/Space mapping could not suit every reader and removed volume control).
+key 115   VOLUME_UP
+key 114   VOLUME_DOWN
 key 28    ENTER
 key 102   HOME
 key 139   MENU

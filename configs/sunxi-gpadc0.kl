@@ -1,3 +1,6 @@
 # EPD105 physical side buttons, confirmed by getevent on sunxi-gpadc0.
-key 115   DPAD_LEFT         # Upper button: previous Kindle page
-key 114   SPACE             # Lower button: next Kindle page
+# Plain volume keys (2026-09-24). Page turning is left to the reading apps' own settings:
+# Kindle "Turn pages with volume controls", KOReader's volume-key page turning. A system-wide
+# remap to D-pad/Space (used until 2026-09-24) paged in some apps but broke volume everywhere.
+key 115   VOLUME_UP
+key 114   VOLUME_DOWN

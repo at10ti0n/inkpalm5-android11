@@ -130,7 +130,7 @@ Nothing here is required, it is just what makes it a good reader:
 | **Warmth** | **Screen Temperature** (Android's Night Light, driving the warm LEDs): the tile, the slider under Brightness (all the way to Cool = off), or Settings > Display > Screen Temperature for intensity and a schedule (custom times). |
 | **Text / Graphics** | the **Mode** tile — Text is faster and greyer, Graphics is slower and cleaner. Same two modes stock had. |
 | **Clear ghosting** | the **Refresh** tile does one full flash. |
-| **Page turns** | volume keys (Vol Down = Space, Vol Up = D-pad left) — works in Kindle and browsers. |
+| **Page turns** | the side buttons are normal volume keys; turn on the reading app's own option: Kindle, *Aa* menu > More > "Turn pages with volume controls"; KOReader, its volume-key page-turning setting. |
 | **The Moaan logo** | Home, and wakes the device. |
 | **Dark theme** | Android 11's own, works OS-wide: the **Dark theme** tile, or Settings → Display. Off by default — on a reflective E Ink panel, dark-on-light is usually the more readable way round. |
 
