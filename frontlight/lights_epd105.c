@@ -17,7 +17,7 @@
  * Only the backlight light is offered; every other light type reports "unavailable".
  * Build (NDK r2x):
  *   armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wl,-z,now \
- *       -o lights.virgo.so lights_epd105.c -llog
+ *       -o lights.virgo.so lights_epd105.c -llog -lm
  * Install: /vendor/lib/hw/lights.virgo.so (keep the stock one as lights.virgo.so.stock).
  */
 #include <stdint.h>
@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <math.h>
 #include <sys/system_properties.h>
 #include <android/log.h>
 #include "frontlight_tables.h"
@@ -110,14 +111,41 @@ static int apply(int cold, int warm)
     return rc;
 }
 
+/* Android 11's brightness slider is not linear: SystemUI/Settings pass the slider position
+ * through BrightnessUtils.convertGammaToLinearFloat (an LCD perceptual curve) before it becomes
+ * the backlight value we receive. The stock LED tables are already spaced for the eye (stock's
+ * slider was a plain 0..24), so applying the curve twice put 10%..50% of the slider on levels
+ * 1..2 and the last 20% on 9..24 (MEASURED/computed 2026-09-24). Invert it: recover the slider
+ * position from the backlight value and spread it evenly over levels 1..24.
+ * Constants are AOSP 11's (R, A, B, C; 12 = the curve's maximum); b <-> float is the framework's
+ * BrightnessSynchronizer mapping f = (b - 1) / 254; the slider's minimum is backlight `lo`. */
+static int level_for(int b, int lo)
+{
+    const double R = 0.5, A = 0.17883277, B = 0.28466892, C = 0.55991073;
+    double fmin = (lo - 1) / 254.0, f = (b - 1) / 254.0;
+    double lin = (f - fmin) / (1.0 - fmin) * 12.0, pos;
+    if (lin <= 0) return 1;
+    pos = lin <= 1.0 ? R * sqrt(lin) : C + A * log(lin - B);
+    int lvl = (int)(pos * MAX_LEVEL + 0.5);
+    return lvl < 1 ? 1 : lvl > MAX_LEVEL ? MAX_LEVEL : lvl;
+}
+
+/* Warmth row. Rows 1..23 of the stock tables give nearly the same light output at a given
+ * brightness (the mix changes, the total does not); row 0 ("warm bank off") uses a different PWM
+ * curve -- 3-6x brighter at the low levels -- and row 24 is irregular too. Clamping to 1..23 makes
+ * Screen Temperature on/off and its intensity change the colour, not the brightness. */
+#define MIX_MIN 1
+#define MIX_MAX 23
+
 static int set_backlight(struct light_device_t *dev, const struct light_state_t *st)
 {
     (void)dev;
     unsigned c = st->color;
     int b = ((77 * ((c >> 16) & 0xff)) + (150 * ((c >> 8) & 0xff)) + (29 * (c & 0xff))) >> 8;
     int lo = off_at();
-    int cold = b <= lo ? 0 : 1 + (b - lo - 1) * MAX_LEVEL / (255 - lo);   /* lo+1..255 -> 1..24 */
-    int warm = b <= lo ? 0 : warm_level();                              /* off/doze: both banks off */
+    int cold = b <= lo ? 0 : level_for(b, lo);   /* "cold" = brightness column (see tables header) */
+    int warm = warm_level();
+    warm = b <= lo ? 0 : warm < MIX_MIN ? MIX_MIN : warm > MIX_MAX ? MIX_MAX : warm;  /* off/doze: both banks off */
     int rc;
     pthread_mutex_lock(&g_lock);
     if (cold != g_last_cold || warm != g_last_warm) {

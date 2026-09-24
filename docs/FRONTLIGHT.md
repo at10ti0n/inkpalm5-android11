@@ -175,3 +175,24 @@ Verified on the device: Night Light on leaves the display colour matrix unchange
 3030 K gives warm 17, 2596 K gives 24, 4082 K gives 1, off gives 0; the slider row at mid
 position turns Night Light on at 3371 K (warm 12); Settings shows the renamed entry and page.
 Schedules: custom times only. "Sunset to sunrise" needs location, which the port keeps off.
+
+## Even brightness steps, and warmth that does not change brightness (2026-09-24)
+
+Reported: brightness and Screen Temperature "did not feel reliable". Two causes, both fixed in
+`lights_epd105.c`:
+
+1. **The brightness curve was applied twice.** Android 11's slider passes its position through
+   an LCD perceptual curve before the value reaches the HAL; the stock LED levels are already
+   perceptual (stock's slider was a plain 0..24). Result: 10%..50% of the slider gave levels
+   1..2, the last 20% gave 9..24. The HAL now inverts AOSP's curve and spreads the slider evenly:
+   measured backlight 11/15/30/60/94/153/255 -> levels 3/6/12/17/19/22/24 (was 1/1/2/5/9/14/24).
+2. **Warmth row 0 is a different curve.** The tables are `[warmth][brightness]` (the header
+   comment said the reverse; corrected). Rows 1..23 give nearly equal light output at a given
+   brightness -- the mix changes, not the total -- but row 0 (warm bank off), used whenever
+   Screen Temperature was off, is 3-6x brighter at low levels, and row 24 is irregular. The HAL
+   now uses rows 1..23 only, so off = the mildest warmth, and turning Screen Temperature on or
+   changing its intensity changes colour at constant brightness (measured: brightness column
+   stays 12 while the warmth row goes 1 -> 12 -> 23 -> 1). einktile maps intensity to rows 1..23.
+
+Output figures behind (2) are estimates from the driver registers, not light-meter readings.
+Previous HAL kept on the device as /data/local/lights.virgo.so.prev.

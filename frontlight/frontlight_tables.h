@@ -1,5 +1,11 @@
 /* Stock EPD105 SystemUI (Android 8.1) com.android.systemui.led107.LedParamControl tables,
- * extracted from the odex.  Index: TABLE[cold_level][warm_level], levels 0..24.
+ * extracted from the odex.  Index: TABLE[warmth][brightness], both 0..24.
+ * (Corrected 2026-09-24; this comment used to say [cold][warm].) Read from the data: along the
+ * FIRST index the cold bank's current falls 7 -> 0 while the warm bank's rises 0 -> 7, so it is
+ * the cold/warm MIX; along the SECOND index every table starts at 0 and rises, so it is the
+ * overall BRIGHTNESS. The HAL's "cold" variable is that brightness column.
+ * Row 0 (warm bank off) uses a different PWM curve from rows 1..23 and row 24 is irregular; the
+ * HAL uses rows 1..23 only (see lights_epd105.c).
  * Written to /proc/lm3630a/{pwm_level,leda_max_cur,leda_brightness,ledb_max_cur,ledb_brightness}
  * (leda = cold bank, ledb = warm bank), in that order, exactly as stock setLedValue(warm, cold). */
 #define FL_LEVELS 25

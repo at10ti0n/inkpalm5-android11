@@ -22,7 +22,7 @@ import android.util.Log;
  *   night_display_activated          on  -> warm level from the temperature (intensity)
  *                                    off -> persist.sys.frontlight.warm_day (default 0)
  *   night_display_color_temperature  config_nightDisplayColorTemperatureMax (least warm) ..Min
- *                                    (warmest) -> warm level 1..24
+ *                                    (warmest) -> warmth row 1..23 (the HAL uses rows 1..23 only)
  *
  * Night Light's own tile, Settings page and schedule (custom times; sunset-to-sunrise needs
  * location, which the port keeps off) therefore control the light. The level goes to
@@ -36,7 +36,7 @@ public class ScreenTempService extends Service {
     static final String WARM_DAY = "persist.sys.frontlight.warm_day";
     static final String ACTIVATED = "night_display_activated";
     static final String TEMP = "night_display_color_temperature";
-    static final int MAX_LEVEL = 24;
+    static final int MAX_LEVEL = 23;   // warmth rows 1..23; see frontlight/lights_epd105.c
 
     private final Handler mH = new Handler(Looper.getMainLooper());
     private ContentObserver mObs;
