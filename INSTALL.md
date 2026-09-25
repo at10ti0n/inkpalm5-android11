@@ -218,20 +218,18 @@ is still caught.
   against your own SystemUI with `systemui/patch-systemui.sh` ([BUILDING.md](BUILDING.md)).
   Reflashing or updating the GSI later reverts it — re-run the patch.
 
-* **Two unexplained freezes so far** (2026-09-17 and 2026-09-19, in about two months of
-  daily use). SurfaceFlinger starts spinning on one core, nothing composites, the panel keeps
-  its last image and the device looks switched off; because it cannot suspend, it flattens the
-  battery. Recovery is a 20-second power-button hold. Diagnosed but not fixed, see
-  [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). A detector
-  (`tools/sf-watch.sh`) is installed and runs at every boot. The condition the freeze lived in --
-  SurfaceFlinger never receiving a vsync, because the E Ink kernel path emits none -- is fixed as of
-  2026-09-21 by the new `libhwcflip.so`, which generates the vsync callback itself (see
-  [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md)). Whether the freeze can still occur
-  under the corrected scheduler is not yet known, so the watcher stays, and since 2026-09-21 it also
-  **recovers automatically**: after saving the evidence it restarts SurfaceFlinger, which clears
-  the hang without a reboot (measured on a live three-hour hang). You lose whatever app was in
-  the foreground, which beats a device that will not draw again. If it happens to you, send the
-  contents of `/data/local/sf-hang/`.
+* **Occasional SurfaceFlinger freezes** (four on the author's device, 2026-09-17 to 09-21).
+  SurfaceFlinger spins on one core, nothing composites, the panel keeps its last image and the
+  power button seems dead. The watcher (`tools/sf-watch.sh`, installed and started at every boot)
+  saves the evidence and **recovers automatically** by restarting SurfaceFlinger, in about a
+  minute, without a reboot; you lose the foreground app's state. The spinning loop was traced to
+  a value the thread keeps in a NEON register and trusts forever; a one-instruction workaround for
+  it exists. **Opt in with `SF_PATCH=1 bash install/from-android.sh ...`**: it patches your own
+  `libsurfaceflinger.so` on your computer (hash-checked) and stages it, and the v2.4 boot image
+  mounts it before SurfaceFlinger starts. In service on the author's device since 2026-09-22
+  with no freeze since, which is too short to call it fixed; the root cause is not confirmed.
+  See [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). If a freeze happens to you,
+  send the contents of `/data/local/sf-hang/`.
 * **Landscape for a moment at every boot**, before the rotation lock applies.
 * **Battery life is not characterised yet.** Suspend works; long-term numbers are pending.
 * **Untested:** audio (no speaker on this device), Bluetooth (declared, kept off).

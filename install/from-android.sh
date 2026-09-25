@@ -154,18 +154,20 @@ fi
 # GSI build it was decompiled from -- so this replaces SystemUI ONLY when the one on the
 # device is byte-for-byte the build this APK was made from. Any other GSI is left alone.
 STOCK_SYSUI_SHA=6fb1830ec147e77699393d95de92d04ef99deac02e32e19576f19e93a1389d16
+# v2.3 shipped a patched SystemUI (warmth slider + hidden clock); upgrading from it is allowed.
+V23_SYSUI_SHA=ff609d49f517f2a546990e0f29da71c1fb3088b729eabf86489103bf6056d587
 if [ -f "$A/SystemUI-warmth.apk" ]; then
   say "front-light warmth slider in Quick Settings"
   CUR=$(adb shell "su -c 'sha256sum /system/system_ext/priv-app/SystemUI/SystemUI.apk'" 2>/dev/null | tr -d '\r' | grep -oE '^[0-9a-f]{64}' | head -1)
   OURS=$(shasum -a256 "$A/SystemUI-warmth.apk" | cut -d' ' -f1)
   if [ "$CUR" = "$OURS" ]; then
     echo "  already installed"
-  elif [ "$CUR" != "$STOCK_SYSUI_SHA" ]; then
+  elif [ "$CUR" != "$STOCK_SYSUI_SHA" ] && [ "$CUR" != "$V23_SYSUI_SHA" ]; then
     echo "  SKIPPED -- your SystemUI.apk is not the GSI build this was built against."
     echo "    on device: ${CUR:-<unreadable>}"
-    echo "    expected:  $STOCK_SYSUI_SHA"
-    echo "    Brightness and the Warmth tile still work; for the slider, build one against"
-    echo "    your own SystemUI with systemui/patch-systemui.sh (see BUILDING.md)."
+    echo "    expected:  $STOCK_SYSUI_SHA (stock) or $V23_SYSUI_SHA (v2.3)"
+    echo "    Brightness and Screen Temperature (tile, Settings > Display) still work; for the"
+    echo "    slider row, build one against your own SystemUI with systemui/patch-systemui.sh."
   else
     adb push "$A/SystemUI-warmth.apk" /sdcard/SystemUI-warmth.apk
     adb shell "su -c '
