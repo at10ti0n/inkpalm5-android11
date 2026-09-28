@@ -20,8 +20,13 @@ Start to finish, about 45 minutes. Two scripts do the fiddly parts; you run six 
   board and partition layout, different firmware branch. On L61B807:
   * the signed **dump ZIP works and only reads** your boot partition (its update script has no
     version check, and stock recovery trusts the same AOSP test key it is signed with);
-  * **never flash qwerty12's pre-patched V05/V11 boot images**: they carry another branch's
-    kernel and ramdisk;
+  * **don't use qwerty12's pre-patched V05/V11 boot images**; they are untested on L61B807.
+    Compared with this device's stock boot (2026-09-28), V05's has the same kernel version
+    (4.9.56), header, drivers and ramdisk (one SELinux file differs), but it is a different
+    kernel build from 2021 under a 2024 system, and the vendor's kernel modules (e.g. the Mali
+    GPU driver, built with `modversions`) are only known to load on L61B807's own kernel. It is
+    not a brick risk (only the boot partition is written, and stock recovery can put your own
+    dumped image back), just an unnecessary unknown;
   * patch **your own** dumped `bimg.img` with Magisk and flash that with the template ZIP.
     Keep the unpatched `bimg.img`: it is the stock boot image this guide checks and builds from.
 * A computer with `adb`, `python3` and `bash`. USB cable.
