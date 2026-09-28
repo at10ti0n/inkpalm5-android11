@@ -13,7 +13,17 @@ Start to finish, about 45 minutes. Two scripts do the fiddly parts; you run six 
 ## What you need
 
 * A **Moaan InkPalm 5 Pro Mini (EPD105)** on **rooted stock Android 8.1**.
-  Not rooted yet? Do that first: https://github.com/qwerty12/inkPalm-5-EPD105-root
+  Not rooted yet? Use qwerty12's method: https://github.com/qwerty12/inkPalm-5-EPD105-root,
+  **but read this first.** That guide targets the `MAS_EPD105_L8AM105_*` firmware line (its
+  check wants `ro.fota.version` = `MAS_EPD105_L8AM105_V05_210518`). This port was built on the
+  `MAS_EPD105_L61B807_*` line (check with `adb shell getprop ro.project.sw.version`): same SoC,
+  board and partition layout, different firmware branch. On L61B807:
+  * the signed **dump ZIP works and only reads** your boot partition (its update script has no
+    version check, and stock recovery trusts the same AOSP test key it is signed with);
+  * **never flash qwerty12's pre-patched V05/V11 boot images**: they carry another branch's
+    kernel and ramdisk;
+  * patch **your own** dumped `bimg.img` with Magisk and flash that with the template ZIP.
+    Keep the unpatched `bimg.img`: it is the stock boot image this guide checks and builds from.
 * A computer with `adb`, `python3` and `bash`. USB cable.
 * This repo: `git clone https://github.com/at10ti0n/inkpalm5-android11`
 * The prebuilt images: **[latest release](https://github.com/at10ti0n/inkpalm5-android11/releases/latest)** →
