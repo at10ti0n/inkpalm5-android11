@@ -159,9 +159,19 @@ returns a number, and that `/vendor/lib/hw/lights.virgo.so` matches the release 
 ## Is my firmware version supported?
 
 This has been built and tested against exactly one firmware build:
-**`MAS_EPD105_L61B807_T07_V03`** (vendor fingerprint
-`Allwinner/virgo_perf1/virgo-perf1:8.1.0/OPM1.171019.026/20240320-173513`, vendor build date
-2024-03-20). The version string lives in `vendor.img`, not in boot or recovery.
+**`MAS_EPD105_L61B807_T09_V03`** (`ro.project.sw.version`; system build `20240320-173513`,
+vendor fingerprint `Allwinner/virgo_perf1/virgo-perf1:8.1.0/OPM1.171019.026/20240320-173513`).
+Check yours on stock 8.1 with:
+
+```
+adb shell getprop ro.project.sw.version
+adb shell getprop ro.vendor.build.fingerprint
+```
+
+*(Corrected 2026-09-28: earlier versions of this guide said T07 and that the version lives in
+vendor.img. `T07_V03` is only the source tag compiled into the vendor's Mali GPU driver, which
+T09 did not rebuild; the firmware version is the `ro.project.*` properties in the system
+partition. The author's device was updated over the air from T06_V02 to T09_V03.)*
 
 A different version string does **not** automatically mean it won't work — what matters is
 whether your `boot` and `recovery` partitions match. The builders check this for you and
