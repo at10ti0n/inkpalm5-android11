@@ -68,18 +68,27 @@ again — do not reboot with a bad recovery.
 > Flash **by name**. `boot` and `recovery` are both 32 MiB and adjacent; a typo here is
 > the one mistake that is genuinely fatal.
 
-## 3. Boot into TWRP, using the buttons
+## 3. Boot into TWRP
 
-Do **not** use `adb reboot recovery` from stock Android — it can write a boot-control
-message that sends you somewhere else.
+**Easiest, from stock Android with USB connected:**
+```
+adb reboot recovery
+```
+This was the working route into recovery throughout development. It asks the bootloader
+for recovery (it may also leave a boot request in the `misc` partition, which recovery
+clears); it does not touch anything else.
+
+**Or with the buttons** (the timing is finicky, not deterministic):
 
 1. Unplug USB.
-2. Hold **Power** until the Moaan logo comes back.
-3. Hold **Volume Up**, and plug USB in while still holding it.
-4. Keep holding until TWRP draws (~20 s).
+2. Hold **Power** alone until the Moaan logo appears, then let go.
+3. Press and hold **Volume Up** only, and plug USB in while still holding it.
+4. Keep holding until TWRP draws (~20 s). If it stays on the logo, unplug and repeat.
 
-`adb devices` now shows `recovery`, and you have a root shell. If the screen stays on the
-logo, unplug and repeat — the timing is finicky, not deterministic.
+Stuck on the logo either way? Hold **Power + Volume Down** for 15-20 s to force a restart.
+
+Give TWRP 10-20 s after its screen appears, then `adb devices` shows `recovery` and you have a
+root shell. If it does not, run `adb kill-server && adb devices` and try another cable/port.
 
 ## 4. Back up /data, then wipe
 
