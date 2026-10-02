@@ -126,9 +126,10 @@ touch in the wrong place. That is expected** — step 7 fixes it. Wait for
 bash install/from-android.sh ~/inkpalm-assets
 ```
 
-Installs the key layouts and touch config, adds the four Quick Settings tiles, applies the
-native configuration (locked portrait, lock-screen image, 2-minute timeout, Bluetooth and
-scanning off), sets up kernel suspend, and reboots. Optional extras are switched on by
+Installs the key layouts and touch config, the E-Ink tiles app, the Screen Temperature
+overlays and SystemUI slider, sets the Quick Settings panel, applies the native configuration
+(locked portrait, lock-screen image, 2-minute timeout, Bluetooth and scanning off), sets up
+kernel suspend, and reboots. Optional extras are switched on by
 prefixing the command: `SF_PATCH=1` and `ORIENT_PATCH=1` (see Known issues).
 
 **When it comes back you are done.** Portrait, touch aligned, brightness slider working.
@@ -142,8 +143,9 @@ Nothing here is required, it is just what makes it a good reader:
 * **[Unlauncher](https://github.com/jkuester/unlauncher)** — a text-list launcher. Set it as
   default in Settings → Apps → Default apps → Home app.
 * **[EinkBro](https://github.com/plateaukao/einkbro)** — a browser built for E Ink.
-* **Kindle** — physical side buttons turn pages through the sunxi-gpadc0 layout.
-* **Orientation** — the Portrait/Landscape Quick Settings tile switches fixed orientation directly. Use einktile v4 or newer; the standard auto-rotate tile is not equivalent on this port.
+* **Kindle** — turn on "Turn pages with volume controls" in its settings to page with the side buttons.
+* **[KOReader](https://github.com/koreader/koreader/releases)** — the `arm` APK. It opens in a
+  small box unless you use `ORIENT_PATCH=1` (Known issues).
 
 ---
 
@@ -153,16 +155,17 @@ Nothing here is required, it is just what makes it a good reader:
 |---|---|
 | **Brightness** | the **Brightness** slider in Quick Settings. All the way down = light off. |
 | **Warmth** | **Screen Temperature** (Android's Night Light, driving the warm LEDs): the tile, the slider under Brightness (all the way to Cool = off), or Settings > Display > Screen Temperature for intensity and a schedule (custom times). |
+| **Orientation** | the **Orientation** tile switches portrait/landscape. There is no accelerometer, so Android's auto-rotate does nothing here. |
 | **Text / Graphics** | the **Mode** tile — Text is faster and greyer, Graphics is slower and cleaner. Same two modes stock had. |
 | **Clear ghosting** | the **Refresh** tile does one full flash. |
 | **Page turns** | the side buttons are normal volume keys; turn on the reading app's own option: Kindle's "Turn pages with volume controls" setting, and KOReader's volume-key page-turning setting. |
 | **The Moaan logo** | Home, and wakes the device. **Hold it** (about half a second) for one full refresh, like the Refresh tile; turn that off in Settings → Accessibility → "Long-press Home to refresh". |
-| **Dark theme** | Android 11's own, works OS-wide: the **Dark theme** tile, or Settings → Display. Off by default — on a reflective E Ink panel, dark-on-light is usually the more readable way round. |
+| **Dark theme** | Android 11's own, works OS-wide: Settings → Display → Dark theme (its tile is left off the panel, and it ghosts heavily). Off by default, and battery saver no longer switches it on. |
 
 ## If something goes wrong
 
-**Stuck on the Moaan logo / bootloop.** Get into TWRP with the button sequence in step 3,
-then restore:
+**Stuck on the Moaan logo / bootloop.** Force a restart (Power + Volume Down, 15-20 s), get
+into TWRP with the button sequence in step 3, then restore:
 ```
 adb push stock-boot.img /sdcard/ && adb shell "dd if=/sdcard/stock-boot.img of=/dev/block/by-name/boot bs=4096 && sync"
 adb push stock-system.img /sdcard/ && adb shell "dd if=/sdcard/stock-system.img of=/dev/block/by-name/system bs=1048576 && sync"
@@ -262,7 +265,8 @@ is still caught.
   it exists. **Opt in with `SF_PATCH=1 bash install/from-android.sh ...`**: it patches your own
   `libsurfaceflinger.so` on your computer (hash-checked) and stages it, and the v2.4 boot image
   mounts it before SurfaceFlinger starts. In service on the author's device since 2026-09-22
-  with no freeze since, which is too short to call it fixed; the root cause is not confirmed.
+  with no freeze since (including one unbroken run of almost 8 days to 2026-10-02), which is still not
+  proof; the root cause is not confirmed.
   See [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). If a freeze happens to you,
   send the contents of `/data/local/sf-hang/`.
 * **KOReader and the stock launcher (Launcher3) open letterboxed** in a small landscape box in
@@ -277,7 +281,9 @@ is still caught.
   `/data/local/services.jar.pre-orient` back over `/system/framework/services.jar`, reboot.
   Without the patch, a list launcher such as Unlauncher avoids it on the home screen.
 * **Landscape for a moment at every boot**, before the rotation lock applies.
-* **Battery life is not characterised yet.** Suspend works; long-term numbers are pending.
+* **Battery life is not characterised yet.** Kernel suspend works (the installer sets it up
+  since v2.5; before that it had to be done by hand). One tester reports about 1% in 12 hours
+  asleep; the author's own long-term measurement is pending.
 * **Untested:** audio (no speaker on this device), Bluetooth (declared, kept off).
 * No NFC and no GPS hardware. Telephony is declared by the vendor but absent.
 

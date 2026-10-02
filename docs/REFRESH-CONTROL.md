@@ -21,8 +21,9 @@ Effect is immediate; no restart.  Waveform bit names (Allwinner eink): 0x02 DU, 
 0x08 GC4, 0x10 A2, 0x20 GL16/GU16, 0x40 GLR16, 0x80 GLD16 -- INFERRED from the vendor
 enum convention; DU/A2/0x84 behaviour confirmed by the log, panel look not yet compared.
 
-ADB one-liners (need su):
+Day to day: the Mode and Refresh tiles, or hold the Moaan logo for a full refresh (einktile,
+system UID, no su). ADB one-liners (need su):
   fast reading/scrolling : adb shell su -c 'setprop persist.sys.mRefreshMode 2'
   quality                : adb shell su -c 'setprop persist.sys.mRefreshMode 132'
   clear ghosting now     : adb shell su -c 'setprop persist.sys.canRefresh 1'
-Planned: Quick Settings tile app issuing the same writes (needs SDK build-tools).
+(The planned tile app is einktile/, since 2026-09-17.)

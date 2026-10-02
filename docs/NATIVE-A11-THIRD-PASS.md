@@ -172,6 +172,8 @@ running KOReader, `user_rotation=0` on the next boot). `a11-boot-fixups.sh` now 
 `user_rotation 1` at boot: one bounded write, no polling. Same root cause as quirks 5-7.
 KOReader also stays letterboxed (it renders a landscape-shaped surface);
 `force_resizable_activities=1` widens it to full width but does not fix the height.
+*(Fixed 2026-10-02 by `framework/patch-orientation.py`, opt-in `ORIENT_PATCH=1`: `nosensor` no longer
+means landscape, so KOReader fills the screen.)*
 
 **Page keys.** Measured across all three readers, no single forward key works everywhere --
 see quirk 11. `.kl` now sends `DPAD_RIGHT` on Vol Down so Kindle and KOReader both page. *(Superseded 2026-09-24: the side buttons are plain volume keys again; Kindle and KOReader page with them through their own settings. See README quirk 11.)*
@@ -372,7 +374,9 @@ stated. Three defects remained:
   `updatePowerStateLocked`, and the patched call site then reported "no change" even though a
   sleep had happened.
 
-**Round 4 (in the repo, built, still not installed).** Staging and promotion now share one
+*(Superseded: the repo's `framework/patch-services.sh` now builds the standby-overlay trial
+([STANDBY-IMAGE.md](STANDBY-IMAGE.md)), installed on the author's device since 2026-09-22 and
+not shipped.)* **Round 4 (in the repo, built, still not installed).** Staging and promotion now share one
 acquisition of `mLock`: the button path takes the lock, stages, calls `inkpalmArmLocked()` and
 releases it, and the timeout path already held it. `inkpalmArmLocked` takes no monitor of its
 own and **returns** whether an inline fallback changed wakefulness, so the timeout call site

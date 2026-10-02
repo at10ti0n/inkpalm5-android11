@@ -5,6 +5,11 @@ Reported by the operator: "device seems hot to touch even after being unplugged"
 reboot (`a11/gate17/build/hang/20260918-001051/`, project side).  Failure mode identified; the underlying code defect is not yet isolated, and there is
 no verified fix.  This is the first hang in ~2 months of daily use of this port.
 
+> **Status 2026-10-02:** `a11boot/patch-sf.py` (section "The patch") has been in service on the
+> author's device since 2026-09-22, bind-mounted at boot by the v2.4 boot image since 09-25;
+> no freeze since, including an unbroken run of almost 8 days. For users it is opt-in (`SF_PATCH=1`). The
+> watcher stays as the safety net. Sections below are dated and kept as written.
+
 ## What was actually wrong: a SurfaceFlinger livelock
 
 The device was **not** off and **not** crashed.  ADB was alive, `sys.boot_completed=1`,
@@ -626,7 +631,7 @@ byte is nonzero while the queue is empty" and "this reading is wrong".
 not move), so they exercised cpuidle (`cpu-sleep-0`, `cluster-sleep-0`, millions of entries) but not
 suspend/resume. An 8-hour canary is running; it tests suspend only if the device is unplugged.
 
-## The patch (staged, not in service): `a11boot/patch-sf.py`
+## The patch: `a11boot/patch-sf.py` (staged when written; in service since 2026-09-22)
 
 One instruction. `0xa0044: vst1.64 {d8,d9},[r0]` becomes `strb.w r1,[sp,#0x88]`. `r1` is the
 queue size just loaded: zero when the queue is empty, which is the only case where the zero

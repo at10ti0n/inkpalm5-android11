@@ -1,5 +1,10 @@
 # Will it boot? -- second review of recovery-EPD105-twrp-boot-test.img
 
+> **Historical.** The fixes reviewed here worked: by-name symlinks (fix1) and the display/touch
+> preload (fix2) live in `twrp/` and `twrp-epd105.img` boots with ADB since 2026-09-17. The
+> companion audit and the `twrp/fix1/` files it mentions stayed in the project workspace. To
+> reach TWRP, use `adb reboot recovery` from stock 8.1 (INSTALL.md step 3).
+
 Desk-only, 2026-09-17.  Companion to CANDIDATE-AUDIT-2026-09-17.md (which answered
 "is it safe"; this answers "will it work").  No device action.
 

@@ -53,7 +53,8 @@ treats b <= 10 as both banks off.  Result: slider fully left = light off, sleep 
 off, wake = restored, no polling, no framework change.  Override with
 `persist.sys.frontlight.off_at` if a different build has a different minimum.
 
-**Warmth UI.** einktile v3 adds a **Warmth** Quick Settings tile (0..24 slider dialog).
+**Warmth UI.** *(Superseded in v6: the Warmth tile is gone; warmth is Screen Temperature, see
+below.)* einktile v3 adds a **Warmth** Quick Settings tile (0..24 slider dialog).
 It writes the property and then nudges `screen_brightness` by one step and back so the
 framework re-issues the backlight call and the HAL re-applies with the new warm level.
 Verified end-to-end (`logcat -s lights.epd105`):
@@ -124,9 +125,9 @@ SystemUI runs as `android.uid.systemui` (uid 10138), not uid 1000, so it cannot 
 a `system_prop` like `persist.sys.frontlight.warm`. It works here because this port runs
 SELinux **permissive** (a consequence of the permissive-init patch, quirk 3) -- property
 service logs the denial and allows the write. On an enforcing build the slider would need to
-hand the value to the einktile app (uid 1000) by broadcast instead. The Warmth **tile** is
-still shipped and still works, both as that fallback and for anyone who would rather not
-patch SystemUI.
+hand the value to the einktile app (uid 1000) by broadcast instead. The Warmth **tile** was
+kept at the time as that fallback; it was removed in einktile v6 (2026-09-24), see "Warmth is
+Night Light now" below.
 
 Measured on the device, dragging the slider end to end:
 

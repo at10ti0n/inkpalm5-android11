@@ -197,6 +197,11 @@ No release assets should advertise this behaviour until their integration is rev
 
 ## Compiled code for the patched framework (2026-09-24)
 
+> **Reverted the same day: do not run `tools/install-services-odex.sh`** (it now exits with a
+> pointer). The device was slower with it; verify+JIT stays. See
+> [INCIDENT-SERVICES-ODEX.md](INCIDENT-SERVICES-ODEX.md). The stale odex files were removed on
+> 2026-10-02 when the orientation patch was installed.
+
 Installing the trial moves the original prebuilt `services.odex/.vdex/.art` aside (they belong
 to the original jar). Android 11 then compiles services.jar into /data/dalvik-cache with the
 "verify" filter only, so the whole system server ran interpreted/JIT. Even a "speed" compile in

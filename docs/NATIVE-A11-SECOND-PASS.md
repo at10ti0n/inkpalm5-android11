@@ -67,6 +67,11 @@ or manipulate display/calibration data. No binary patch was needed.
 
 ## Native USB/ADB
 
+> **Status 2026-10-02: not in the installer.** The release still enables ADB through the
+> `/cache/phh-adb` fallback, and on that fallback **`adb root` kills adbd** with nothing to
+> restart it. The root/unroot results below apply only to a device with this section applied
+> by hand.
+
 The stock init registers `adbd /system/bin/adbd`, but that executable path was absent.
 PHH later declares a duplicate APEX-based adbd service using `override`, unsupported
 by this old init, and separately starts `adbd_apex`. The `/cache/phh-adb` fallback

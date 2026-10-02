@@ -32,7 +32,9 @@ A brief landscape startup remains before WindowManager applies portrait; the ope
 confirmed this. Natural geometry is still landscape, so app letterboxing is not fixed.
 The auto-rotate UI describes the sensor policy, not the fixed WindowManager policy;
 turning it off can reintroduce the startup reset. Do not run `wm set-user-rotation lock`.
-The shipped startup script no longer writes either rotation setting or polls them.
+The shipped startup script no longer polls either rotation setting. *(Since 2026-09-18 it
+re-asserts `user_rotation 1` once per boot, because KOReader's request could leave
+`user_rotation=0`; third pass §3.12.)*
 
 ## Independent key layouts
 
@@ -68,7 +70,8 @@ third-party overlays. A normal APK sideload is not the installation method.
 
 Native `screen_off_timeout=120000` replaces the polling SleepActivity launcher and
 synthetic Sleep key. It respects Android user activity and keep-screen-on requests.
-The sleep screen is now the native AOD one (the SystemUI clock); the old SleepActivity
+The sleep screen is now the native AOD one (the SystemUI clock) *(AOD has since been
+switched off by default: each redraw caused touch wakes that broke suspend, third pass §3.15)*; the old SleepActivity
 was removed from the tile APK in v2 and no longer exists anywhere in this repo.
 
 This verifies display behaviour, not battery life. USB-connected suspend statistics

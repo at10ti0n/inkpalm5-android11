@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build einktile.apk with the installed SDK (build-tools 34.0.0, platform 27) and JDK 11.
+# Build einktile.apk with the installed SDK (build-tools 34.0.0, platform 27) and JDK 17 (JDK 21 breaks d8).
 set -euo pipefail
 cd "$(dirname "$0")"; BT=/opt/homebrew/share/android-commandlinetools/build-tools/34.0.0; AJ=/opt/homebrew/share/android-commandlinetools/platforms/android-27/android.jar
 TEXT=${MODE_TEXT:?set MODE_TEXT}; GFX=${MODE_GRAPHICS:?set MODE_GRAPHICS}

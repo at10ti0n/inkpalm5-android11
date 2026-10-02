@@ -26,7 +26,7 @@ python3 a11boot/mkboot.py boot.img      boot-android11-epd105.img
 `mktwrp.py` re-adds the E Ink waveform (`/system/default.bin`) from *your* stock ramdisk —
 which is why the shipped TWRP ramdisk in this repo has it stripped.
 
-The native pieces need the Android NDK (r2x) and, for the APKs, build-tools 34 + JDK 11:
+The native pieces need the Android NDK (r2x) and, for the APKs, build-tools 34 + JDK 17:
 
 ```
 NDK=.../toolchains/llvm/prebuilt/<host>/bin
@@ -34,6 +34,7 @@ NDK=$NDK bash a11boot/build-hwcflip.sh build/libhwcflip.so   # HWC2 headers are 
 $NDK/armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wl,-z,now -o lights.virgo.so frontlight/lights_epd105.c -llog
 MODE_TEXT=2 MODE_GRAPHICS=132 bash einktile/build.sh     # -> einktile/build/einktile.apk
 bash overlays/aod/build.sh                               # -> overlays/aod/build/inkpalm-aod.apk
+bash overlays/power/build.sh                             # -> overlays/power/build/inkpalm-power.apk (suspend)
 $NDK/armv7a-linux-androideabi27-clang -shared -fPIC -O2 -o build/libwpaexit.so wifi/libwpaexit.c -ldl   # Wi-Fi shutdown crash
 for o in screentemp-fw screentemp-settings screentemp-systemui nomodem; do    # Screen Temperature; no-modem
   bash overlays/build-platform-overlay.sh overlays/$o    # -> overlays/$o/build/inkpalm-$o.apk
@@ -88,14 +89,16 @@ why each piece is needed.
 | `boot-android11-epd105.img` | stock 8.1 ramdisk + permissive-init patch + prepended rc |
 | `libhwcflip.so` | `/vendor/lib/` — cancels the vendor composer's frame mirroring |
 | `lights.virgo.so` | `/vendor/lib/hw/` — drives the real LM3630A front light |
-| `inkpalm-aod.apk` | `/vendor/overlay/` — enables the native always-on display |
-| `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, portrait/landscape; lock-wallpaper receiver; ScreenTempService, which maps Night Light onto the warm LEDs (v6) |
+| `inkpalm-aod.apk` | `/vendor/overlay/` — makes the native always-on display available; it stays off by default because each redraw causes touch wakes ([docs/SUSPEND-DIAGNOSIS.md](docs/SUSPEND-DIAGNOSIS.md)) |
+| `inkpalm-power.apk` | `/vendor/overlay/` (must be preinstalled) — lets autosuspend run in doze; pairs with `configs/android.system.suspend@1.0-service.rc` (SystemSuspend in `class hal`). Both are needed for kernel suspend ([docs/NATIVE-A11-SECOND-PASS.md](docs/NATIVE-A11-SECOND-PASS.md)). Signed with its own throwaway key, so a rebuild differs byte-wise from the release file |
+| `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, portrait/landscape; lock-wallpaper receiver; ScreenTempService, which maps Night Light onto the warm LEDs (v6); HomeKeyService, hold the logo for a full refresh (v7) |
 | `libwpaexit.so` | `/vendor/lib/` + a `setenv LD_PRELOAD` line in the vendor Wi-Fi service — the Wi-Fi daemon exits cleanly at shutdown instead of crashing ([wifi/README.md](wifi/README.md)) |
 | `inkpalm-nomodem.apk` | `/vendor/overlay/` (must be preinstalled) — declares no mobile data, so Android creates no phone/RIL; ends the phone process's endless wait for the radio HAL (two ANRs at every boot) |
 | `inkpalm-screentemp-fw.apk` | `/vendor/overlay/` (must be preinstalled) — Night Light tint set to identity, so it no longer greys the panel |
 | `inkpalm-screentemp-settings.apk`, `inkpalm-screentemp-systemui.apk` | ordinary packages — rename Night Light to Screen Temperature; trim the Quick Settings Edit list to this hardware |
 | `SystemUI-warmth.apk` | patched SystemUI: Screen Temperature slider (a front end to Night Light since 2026-09-24), lock-screen clock hidden (GSI-specific) |
-| `services-powerpress.jar` | patched framework: power press and idle timeout show the lock screen, then sleep 800 ms later (GSI-specific). **Not shipped and rolled back on the author's device** pending the SurfaceFlinger investigation -- it adds surface creation to the path implicated in [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). Without it the panel keeps the last app frame through sleep. |
+| `services-standby.jar` | built by `framework/patch-services.sh`: the standby-image trial (a dedicated overlay drawn before sleep; [docs/STANDBY-IMAGE.md](docs/STANDBY-IMAGE.md)). Installed on the author's device, **deliberately not shipped**. The earlier `services-powerpress.jar` (lock screen, then sleep 800 ms later) is withdrawn and nothing builds it any more |
+| `framework/patch-orientation.py` | not a release file: the installer runs it on the user's own `services.jar` with `ORIENT_PATCH=1` (apps asking for the natural orientation are no longer letterboxed) |
 
 Design notes for all of these are in `docs/`; start with
 [REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).

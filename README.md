@@ -6,10 +6,12 @@ display and touch.  Stock firmware is Android 8.1.
 
 **What works:** boots, E Ink panel (correct orientation, no mirroring), touch, Wi-Fi, ADB from
 boot, Quick Settings tiles for the panel's Text/Graphics waveform and a manual full refresh,
-volume buttons as page-turn keys, the capacitive logo as Home/wake, Unlauncher, Kindle,
-EinkBro, Aurora Store.  **Untested:** audio (declared, no speaker, nothing played yet), Bluetooth (declared, kept
-off), long-term battery life (short suspend measurements below).  No NFC/GPS hardware; telephony is declared but
-absent (PHH no-RIL).
+front light brightness and warmth, kernel suspend, the capacitive logo as Home/wake (hold it for
+a full refresh), Unlauncher, Kindle, KOReader, EinkBro, Aurora Store. The side buttons are volume
+keys, which Kindle and KOReader can use to turn pages.  **Untested:** audio (declared, no
+speaker, nothing played yet), Bluetooth (declared, kept off), long-term battery life (short
+suspend measurements only).  No NFC/GPS hardware; telephony is declared but absent (switched
+off with an overlay, see quirk 15).
 
 ## → [**Install guide**](INSTALL.md) ←
 Prebuilt images and two scripts; about 45 minutes. Prefer to build it yourself from your own
@@ -57,11 +59,11 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
   `docs/REFRESH-CONTROL.md`).  Stock's two modes are Text = 2 (DU) and Graphics = 132.
   `einktile/` is a tiny Quick Settings app that flips them -- v2 runs as the system UID
   (platform-signed with the GSI's AOSP test key), so no root is involved.
-* **ADB in Android 11**: v1 uses PHH's script-launched fallback (`adb root` breaks it).
-  The post-v1 [second pass](docs/NATIVE-A11-SECOND-PASS.md) restores init-managed
-  ADB, including working root/unroot restarts.
+* **ADB in Android 11**: the release uses PHH's script-launched fallback (`adb root` breaks
+  it). The [second pass](docs/NATIVE-A11-SECOND-PASS.md) restores init-managed ADB, including
+  working root/unroot restarts, but is applied by hand and not part of the installer yet.
 
-**Post-v1 native configuration:** see [the first-pass update](docs/NATIVE-A11-FIRST-PASS.md) for persistent portrait, native AOD, and separate power/page-key layouts. The [second-pass update](docs/NATIVE-A11-SECOND-PASS.md) restores kernel suspend with AOD and native USB/ADB. Published v1 prebuilts still use the earlier workarounds.
+**Native configuration:** see [the first pass](docs/NATIVE-A11-FIRST-PASS.md) for persistent portrait, native AOD, and separate power/page-key layouts. The [second pass](docs/NATIVE-A11-SECOND-PASS.md) restores kernel suspend (the installer applies this since v2.5) and native USB/ADB (manual).
 
 Native replacements for several rows below were implemented after v1 -- see
 `docs/NATIVE-A11-FIRST-PASS.md`, `docs/NATIVE-A11-SECOND-PASS.md`, and the independent
@@ -93,29 +95,31 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
 | 5 | `ro.surface_flinger.primary_display_orientation` | Rotates the picture but InputReader sees viewport orientation 0 -> touch transposed | Natural 1280x720 + fixed-to-user portrait settings (`configs/configure-native.sh`) + orientation-aware `.idc` | HWC/display config reporting the panel as portrait, so input and SF agree |
 | 6 | `user_rotation` setting persistence | SystemUI can copy startup landscape into a locked rotation preference | Post-v1: fixed-to-user rotation + sensor policy enabled preserves portrait; no polling | Native settings tested; brief landscape startup remains. See first-pass notes |
 | 7 | Apps that request the *natural* orientation (Launcher3, KOReader: `nosensor`) | Letterboxed into a 720x405 box because natural is landscape | Opt-in `ORIENT_PATCH=1`: `framework/patch-orientation.py` makes `nosensor` mean "no preference" (one method of services.jar, 2026-10-02) | Same as 5 |
-| 8 | Framework USB gadget setup | Missing executable path and competing PHH daemon starts broke native ADB | v1 uses script-launched ADB | Post-v1: executable symlink and scoped PHH RC patch restore the native ffs.ready/UDC chain; root/unroot tested. See second-pass notes |
-| 9 | `SurfaceControl.setRefreshMode` / `forceGlobalRefresh` (stock Allwinner SF binder API used by stock apps) | Absent in AOSP SurfaceFlinger; the stock SystemUI tile broadcasts `android.eink.force.refresh` to nobody | The HWC reads `persist.sys.mRefreshMode` per frame and `persist.sys.canRefresh=1` as a one-shot; `einktile` writes them via su; `persist.display.gu16_max_limit` auto-refreshes | An app-facing refresh API (HAL extension or a small system service) |
-| 10 | Always-On Display / doze as a sleep screen | Correction: DozeService runs, but the always-on capability was false | Post-v1: capability RRO enables native AOD; ordinary 2-minute timeout replaces SleepActivity polling | Post-v1 second pass: HAL startup timing + static power RRO restore kernel suspend; 15 successful suspends in a short AOD test |
+| 8 | Framework USB gadget setup | Missing executable path and competing PHH daemon starts broke native ADB | The release uses script-launched ADB | Post-v1: executable symlink and scoped PHH RC patch restore the native ffs.ready/UDC chain; root/unroot tested. See second-pass notes |
+| 9 | `SurfaceControl.setRefreshMode` / `forceGlobalRefresh` (stock Allwinner SF binder API used by stock apps) | Absent in AOSP SurfaceFlinger; the stock SystemUI tile broadcasts `android.eink.force.refresh` to nobody | The HWC reads `persist.sys.mRefreshMode` per frame and `persist.sys.canRefresh=1` as a one-shot; `einktile` (system UID, no root) writes them; `persist.display.gu16_max_limit` auto-refreshes | An app-facing refresh API (HAL extension or a small system service) |
+| 10 | Always-On Display / doze as a sleep screen | Correction: DozeService runs, but the always-on capability was false | Capability RRO enables native AOD (off by default: each AOD redraw induces touch wakes, see INSTALL Known issues); ordinary 2-minute timeout replaces SleepActivity polling | Second pass: HAL startup timing + static power RRO restore kernel suspend (installer applies both since v2.5); 15 successful suspends in a short AOD test |
 | 11 | Volume keys in reading apps | Nothing to fix: Kindle ("Turn pages with volume controls") and KOReader both page with the volume keys natively. Until 2026-09-24 a system-wide `.kl` remap (Vol Down = D-pad right, Vol Up = D-pad left) was used instead, based on the mistaken belief that Kindle had no such option; it cost volume control everywhere | Side buttons are plain Volume Up/Down; turn the option on in each app | -- |
 | 12 | Separate key layouts per input device | Shared ID layout matched power, page keys and sunxi-gpadc0 | Post-v1: device-name layouts for sunxi-gpadc0 (physical side buttons), sunxi-keyboard and pmu1736-powerkey | Native name lookup works after removing the shared ID override; no driver change |
-| 13 | Capacitive Moaan logo as a gesture area | The touch controller reports it as one key (`KEY_HOMEPAGE`), no coordinates | HOME + WAKE via `.kl` | Controller firmware/driver change |
+| 13 | Capacitive Moaan logo as a gesture area | The touch controller reports it as one key (`KEY_HOMEPAGE`), no coordinates | HOME + WAKE via `.kl`; einktile v7 adds hold = full refresh (accessibility key filter) | Controller firmware/driver change |
 | 14 | Framework `exec` in the 8.1 init | Temporary `exec` children never ran (Gate 1F a6) | Declared oneshot/long-running services only | -- |
-| 15 | Telephony | Vendor declares GSM/IMS it has no hardware for | PHH no-RIL; phone process idle | Vendor manifest without telephony |
+| 15 | Telephony | Vendor declares GSM/IMS it has no hardware for | `overlays/nomodem` (`config_mobile_data_capable=false`): no phone/RIL objects, no phone-process ANRs; rild stopped at boot | Vendor manifest without telephony |
 | 16 | ~~Screenshots of DRM readers~~ | **Corrected 2026-09-18:** Kindle's reader is *not* a secure surface here -- `screencap` captures the page normally (the reader screenshot above is a straight `screencap`). The earlier "shows white" note was wrong | -- | -- |
 | 17 | Hardware vsync | The kernel emits none on the E Ink path, so SurfaceFlinger never gets a sample; Android 11's reactor cannot confirm the panel period and the app EventThread stays in synthetic mode on a 16 ms timer -- the regime the SurfaceFlinger livelock lived in | `libhwcflip.so` generates the vsync callback at the panel period while SurfaceFlinger asks for it (measured: period confirmed at 62.5 ms, synthetic mode gone) | A composer that reports vsync, or a kernel that emits it |
 
 ## Layout
     twrp/       mktwrp.py + twrp-epd105-ramdisk.cpio.gz + libepdfix.c + overlay patch
     a11boot/    mkboot.py + a11-prepend.rc + libhwcflip.c + wdog.c
-    configs/    configure-native.sh, bounded boot fixups, named key layouts, touch idc
-    overlays/   native AOD capability overlay builder
-    einktile/   Quick Settings tiles (build.sh: Android build-tools + JDK 11)
+    configs/    configure-native.sh, bounded boot fixups, named key layouts, touch idc, suspend rc
+    overlays/   resource overlays: AOD, power (suspend), nomodem, Screen Temperature (fw/settings/systemui)
+    einktile/   Quick Settings tiles, Screen Temperature service, long-press Home refresh (build.sh)
     install/    from-twrp.sh + from-android.sh (the install guide runs these)
-    frontlight/ replacement lights HAL: brightness slider + warmth
-    systemui/   SystemUI patch: warmth slider in Quick Settings, lock-screen clock hidden
-    framework/  services.jar patch: power press draws the lock screen before the display goes off
+    frontlight/ replacement lights HAL: brightness + warm LED bank
+    systemui/   SystemUI patch: Screen Temperature slider in Quick Settings, lock-screen clock hidden
+    framework/  services.jar patches: nosensor orientation fix (opt-in); standby image on power press (trial, not shipped)
+    wifi/       libwpaexit: clean wpa_supplicant exit at shutdown
     tools/      sf-watch.sh: SurfaceFlinger livelock detector (runs from the boot script)
-    docs/       REFRESH-CONTROL.md, FRONTLIGHT.md, INCIDENT-SF-LIVELOCK.md, images/
+    keys/       the public AOSP platform test key (the GSI's own); used only to sign our overlays/apps
+    docs/       REFRESH-CONTROL.md, FRONTLIGHT.md, INCIDENT-SF-LIVELOCK.md, PERFORMANCE-BATTERY.md, images/
 
 ## Credits
 phhusson (Treble GSI, superuser), TeamWin (TWRP), jkuester (Unlauncher), plateaukao

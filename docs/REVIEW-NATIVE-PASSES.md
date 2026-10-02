@@ -44,7 +44,8 @@ telephony partial wakelock.
 
 **USB -- the best single change in either pass.**  Live: one `adbd` with PPID 1 (init-
 managed), `ffs.ready=1`, `state=adb`, `b.1/f1 -> ffs.adb`, `adbd_apex` absent, the
-`/cache/phh-adb` sentinel gone.  `adb root` works.  Reading the failure as *competing
+`/cache/phh-adb` sentinel gone.  `adb root` works *(on a device with the second pass applied by
+hand; the release keeps the phh-adb fallback, where `adb root` kills adbd)*.  Reading the failure as *competing
 daemons* (stock service pointing at a missing path, PHH's `override` unsupported by the
 old init, plus the sentinel) is the correct account.  Two cautions: the symlink and the
 `apex-setup.rc` patch live on the GSI's `/system`, so any GSI update reverts them (the

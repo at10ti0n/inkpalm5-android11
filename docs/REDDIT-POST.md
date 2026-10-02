@@ -1,3 +1,6 @@
+> Draft of the original v1 post, kept as published. Since then: the side buttons are plain
+> volume keys (apps page with them), telephony is off via an overlay, and releases are at v2.x.
+
 Title: Android 11 running on the Moaan InkPalm 5 Pro Mini (E Ink, Allwinner B300) — working TWRP, correct display and touch, sources + builders
 
 Body:
