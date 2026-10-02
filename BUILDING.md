@@ -11,9 +11,11 @@ waveform/VCOM calibration, not the GSI.
 ## Inputs
 
 ```
-adb shell su -c "dd if=/dev/block/by-name/boot     bs=4096"    > boot.img       # 62ce2f88...
-adb shell su -c "dd if=/dev/block/by-name/recovery bs=4096"    > recovery.img   # a13a37be...
-adb shell su -c "dd if=/dev/block/by-name/system   bs=1048576" > system.img     # rollback
+for p in boot recovery system; do   # copy on the device, then pull: piping dd through adb shell can alter binary data
+  adb shell su -c "'dd if=/dev/block/by-name/$p of=/data/local/tmp/$p.img bs=1048576; chmod 644 /data/local/tmp/$p.img'"
+  adb pull /data/local/tmp/$p.img $p.img && adb shell su -c "'rm /data/local/tmp/$p.img'"
+done
+# boot.img 62ce2f88... (unrooted stock; use your bimg.img dump if Magisk is installed), recovery.img a13a37be...
 ```
 
 ## Build

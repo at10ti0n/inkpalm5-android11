@@ -14,8 +14,10 @@ suspend measurements only).  No NFC/GPS hardware; telephony is declared but abse
 off with an overlay, see quirk 15).
 
 ## → [**Install guide**](INSTALL.md) ←
-Prebuilt images and two scripts; about 45 minutes. Prefer to build it yourself from your own
-stock partitions? [BUILDING.md](BUILDING.md).
+One installer for macOS, Linux and (experimental) Windows: download this repo, connect the
+rooted device, double-click `Install-InkPalm.command` (or run `python3 install/inkpalm.py`). It
+fetches everything, backs up the device, and installs; about 45 minutes. Prefer to build it
+yourself from your own stock partitions? [BUILDING.md](BUILDING.md).
 
 **Prebuilt images:** https://github.com/at10ti0n/inkpalm5-android11/releases/latest (verify SHA256SUMS).
 The repository itself is *builders and sources*: each script takes **your
@@ -112,7 +114,7 @@ device, the workaround shipped, and the cleaner fix if someone wants to do it pr
     configs/    configure-native.sh, bounded boot fixups, named key layouts, touch idc, suspend rc
     overlays/   resource overlays: AOD, power (suspend), nomodem, Screen Temperature (fw/settings/systemui)
     einktile/   Quick Settings tiles, Screen Temperature service, long-press Home refresh (build.sh)
-    install/    from-twrp.sh + from-android.sh (the install guide runs these)
+    install/    inkpalm.py (the all-in-one installer), device/ (its on-device steps), from-*.sh (manual route)
     frontlight/ replacement lights HAL: brightness + warm LED bank
     systemui/   SystemUI patch: Screen Temperature slider in Quick Settings, lock-screen clock hidden
     framework/  services.jar patches: nosensor orientation fix (opt-in); standby image on power press (trial, not shipped)

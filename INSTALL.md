@@ -1,6 +1,7 @@
 # Install guide — Android 11 on the Moaan InkPalm 5 Pro Mini (EPD105)
 
-Start to finish, about 45 minutes. Two scripts do the fiddly parts; you run six commands.
+Start to finish, about 45 minutes. **One installer does all of it** (below); the manual route
+further down shows each step it takes.
 
 > **This can brick your device.** You are overwriting `boot`, `recovery` and `system`.
 > Step 1 is a backup, and it is not optional — there is no fastboot on this device, so a
@@ -29,8 +30,60 @@ Start to finish, about 45 minutes. Two scripts do the fiddly parts; you run six 
     dumped image back), just an unnecessary unknown;
   * patch **your own** dumped `bimg.img` with Magisk and flash that with the template ZIP.
     Keep the unpatched `bimg.img`: it is the stock boot image this guide checks and builds from.
-* A computer with `adb`, `python3` and `bash`. USB cable.
-* This repo: `git clone https://github.com/at10ti0n/inkpalm5-android11`
+* A computer with **Python 3** and a USB cable (plug in directly, not through a hub).
+  macOS and Linux are tested; Windows is experimental (see below). On macOS without Python,
+  `xcode-select --install` provides it.
+* This repo: **Code → Download ZIP** on GitHub and unzip it, or
+  `git clone https://github.com/at10ti0n/inkpalm5-android11`.
+* USB debugging on: Settings → About → tap *Build number* seven times, then Settings → System →
+  Developer options → *USB debugging*.
+
+## Quick install (one command)
+
+Connect the device (rooted stock Android 8.1, unlocked) and run:
+
+| | |
+|---|---|
+| **macOS** | double-click **`Install-InkPalm.command`** in the repo folder (or `python3 install/inkpalm.py` in Terminal) |
+| **Linux** | `python3 install/inkpalm.py` |
+| **Windows** (experimental) | double-click **`install-windows.bat`** |
+
+It asks before each phase and does, in order:
+
+1. **Downloads** what it needs into `inkpalm-work/` in the repo folder: Google's adb if you have
+   none, this project's latest release and phhusson's GSI v313, each checked against a hash.
+2. **Checks the device**: root, the firmware build, and that the recovery partition is the one
+   this was tested on. If the device is not the tested build it stops before writing anything.
+3. **Backs up** every partition to your computer except `private` (the panel calibration, never
+   read or written) and data, each copy verified against the device.
+4. **Flashes TWRP**, verifies it, reboots into it (allow a few minutes).
+5. **Backs up /data** from TWRP to your computer, then wipes data and cache. Your internal
+   storage (books, downloads) stays on the device.
+6. **Writes Android 11** (system, boot, the vendor files), reading every write back.
+7. **Waits for the first boot** (slow, starts in landscape), **configures it**, and reboots.
+
+If anything is interrupted -- a cable, a crash, Ctrl-C -- run it again: it works out where the
+device is and continues. Your backup is in `inkpalm-work/backup-<serial>-<date>/`, with a
+README on how to restore it.
+
+Options (add after `inkpalm.py`, or after the launcher in a terminal):
+`--sf-patch` (SurfaceFlinger freeze workaround) and `--orient-patch` (full-screen KOReader),
+see *Known issues*.
+
+**Updating later:** run it again on Android 11. It installs the new release's files and keeps
+your settings and lock-screen image (`--first-time` re-applies the defaults).
+
+**Windows:** adb needs a USB driver for each mode of the device (Android, and TWRP which shows up
+as USB ID `1f3a:1001`). If the installer waits for the device forever, install the *WinUSB*
+driver for it with [Zadig](https://zadig.akeo.ie) (Options → List All Devices). Reports from
+Windows users are very welcome.
+
+---
+
+# Manual install (what the installer does, step by step)
+
+You need `adb`, `python3` and `bash` for this route, plus:
+
 * The prebuilt images: **[latest release](https://github.com/at10ti0n/inkpalm5-android11/releases/latest)** →
   download and unzip into a folder, e.g. `~/inkpalm-assets/`. Verify them:
   ```
@@ -48,11 +101,14 @@ Start to finish, about 45 minutes. Two scripts do the fiddly parts; you run six 
 ## 1. Back up your device
 
 ```
-adb shell su -c "dd if=/dev/block/by-name/boot     bs=4096"    > stock-boot.img
-adb shell su -c "dd if=/dev/block/by-name/recovery bs=4096"    > stock-recovery.img
-adb shell su -c "dd if=/dev/block/by-name/system   bs=1048576" > stock-system.img
+for p in boot recovery system; do
+  adb shell su -c "'dd if=/dev/block/by-name/$p of=/data/local/tmp/$p.img bs=1048576; chmod 644 /data/local/tmp/$p.img; sha256sum /data/local/tmp/$p.img'"
+  adb pull /data/local/tmp/$p.img stock-$p.img && adb shell su -c "'rm /data/local/tmp/$p.img'"
+done
+shasum -a256 stock-*.img       # each must equal the hash the device printed
 ```
-Three files, ~1.5 GB total. **Put them somewhere you will still have them in a year.**
+Copy to the device first, then pull: piping `dd` straight out through `adb shell` can alter
+binary data on its way to the file. Three files, ~1.5 GB total. **Put them somewhere you will still have them in a year.**
 They are your only way back to stock.
 
 ## 2. Flash TWRP
@@ -105,14 +161,10 @@ bash install/from-twrp.sh ~/Downloads/system-roar-arm-aonly-vanilla.img ~/inkpal
 ```
 
 This pads and writes the GSI, writes the boot image and **verifies the read-back**,
-installs the three vendor files (display fix, front light, AOD overlay) and enables ADB for
-the first boot. It stops with an error rather than continuing if anything does not match.
-Writing `system` takes several minutes — leave it alone.
-
-Then:
-```
-adb shell reboot
-```
+installs the three vendor files (display fix, front light, AOD overlay), enables ADB for
+the first boot, reboots and waits for Android. It stops with an error rather than continuing
+if anything does not match. Writing `system` takes several minutes — leave it alone. (It
+also wipes data and cache first if the installer has not recorded a wipe.)
 
 ## 6. First boot
 
@@ -130,7 +182,8 @@ Installs the key layouts and touch config, the E-Ink tiles app, the Screen Tempe
 overlays and SystemUI slider, sets the Quick Settings panel, applies the native configuration
 (locked portrait, lock-screen image, 2-minute timeout, Bluetooth and scanning off), sets up
 kernel suspend, and reboots. Optional extras are switched on by
-prefixing the command: `SF_PATCH=1` and `ORIENT_PATCH=1` (see Known issues).
+prefixing the command: `SF_PATCH=1` and `ORIENT_PATCH=1` (see Known issues). `UPDATE=1`
+keeps your settings when re-running it later.
 
 **When it comes back you are done.** Portrait, touch aligned, brightness slider working.
 
@@ -202,17 +255,18 @@ T09 did not rebuild; the firmware version is the `ro.project.*` properties in th
 partition. The author's device was updated over the air from T06_V02 to T09_V03.)*
 
 A different version string does **not** automatically mean it won't work — what matters is
-whether your `boot` and `recovery` partitions match. The builders check this for you and
-refuse anything they don't recognise, so you can find out **without flashing anything**:
+whether your stock `boot` and `recovery` partitions match. Rooting changes `boot` (Magisk
+patches it), so compare the **unrooted** boot dump (`bimg.img` from the root step) and the
+live recovery partition. You can find out **without flashing anything**:
 
 ```
-adb shell su -c "dd if=/dev/block/by-name/boot     bs=4096" > boot.img
-adb shell su -c "dd if=/dev/block/by-name/recovery bs=4096" > recovery.img
-sha256sum boot.img recovery.img
+shasum -a256 bimg.img
+adb shell su -c "'dd if=/dev/block/by-name/recovery bs=4096 | sha256sum'"
 ```
+(The installer checks the recovery partition and the firmware properties for you.)
 ```
-known-good boot.img      62ce2f881e331303027a1562ec93efebaa49a5700737f8df4e25c86ffcfba83d
-known-good recovery.img  a13a37be5c0e381d0649aac6377967b87946f2cd4cb4c9743292ce1829842b6c
+known-good boot (unrooted) 62ce2f881e331303027a1562ec93efebaa49a5700737f8df4e25c86ffcfba83d
+known-good recovery        a13a37be5c0e381d0649aac6377967b87946f2cd4cb4c9743292ce1829842b6c
 ```
 
 * **Both match** → your partitions are byte-identical to the tested ones. Proceed normally.
