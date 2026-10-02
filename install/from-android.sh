@@ -122,6 +122,46 @@ if [ -f "$A/inkpalm-screentemp-fw.apk" ]; then
   '" | tr -d '\r'
 fi
 
+# Kernel suspend (docs/NATIVE-A11-SECOND-PASS.md). Two fixes, both needed:
+#  - SystemSuspend must start in class hal, not early_hal: early_hal runs before the 8.1 ramdisk
+#    hands /sys/power/state to system, so the service falls back to a socketpair and never
+#    suspends. Replaced only when the rc is the GSI's own (or already ours).
+#  - inkpalm-power.apk (static framework overlay, /vendor/overlay) lets autosuspend run in AOD.
+# Without them the device never enters kernel suspend and drains several % an hour asleep.
+SUSPEND_RC=/system/etc/init/android.system.suspend@1.0-service.rc
+STOCK_SUSPEND_RC_SHA=c7164caf27ccdc9df71555d54006d087be131ef0afa5bd380b42bb9c5726eb67
+say "kernel suspend (SystemSuspend start order + power overlay)"
+CUR=$(adb shell "su -c 'sha256sum $SUSPEND_RC'" 2>/dev/null | tr -d '\r' | grep -oE '^[0-9a-f]{64}' | head -1)
+OURS=$(shasum -a256 "$R/configs/android.system.suspend@1.0-service.rc" | cut -d' ' -f1)
+if [ "$CUR" = "$OURS" ]; then
+  echo "  start order: already installed"
+elif [ "$CUR" != "$STOCK_SUSPEND_RC_SHA" ]; then
+  echo "  start order: SKIPPED -- $SUSPEND_RC is not the GSI's own (sha ${CUR:-<unreadable>})."
+  echo "    Change its 'class early_hal' line to 'class hal' by hand (docs/NATIVE-A11-SECOND-PASS.md)."
+else
+  adb push "$R/configs/android.system.suspend@1.0-service.rc" /data/local/tmp/system-suspend.rc >/dev/null
+  adb shell "su -c '
+    set -e
+    mount -o rw,remount /system
+    [ -f /data/local/system-suspend.rc.stock ] || cp -p $SUSPEND_RC /data/local/system-suspend.rc.stock
+    cp /data/local/tmp/system-suspend.rc $SUSPEND_RC
+    chmod 644 $SUSPEND_RC; chown 0:0 $SUSPEND_RC; chcon u:object_r:system_file:s0 $SUSPEND_RC
+    rm -f /data/local/tmp/system-suspend.rc; sync
+    echo \"  start order: installed (original saved to /data/local/system-suspend.rc.stock)\"
+  '" | tr -d '\r'
+fi
+if [ -f "$A/inkpalm-power.apk" ]; then
+  adb push "$A/inkpalm-power.apk" /data/local/tmp/inkpalm-power.apk >/dev/null
+  adb shell "su -c '
+  mount -o rw,remount /vendor
+  cp /data/local/tmp/inkpalm-power.apk /vendor/overlay/inkpalm-power.apk
+  chmod 644 /vendor/overlay/inkpalm-power.apk; chown 0:0 /vendor/overlay/inkpalm-power.apk
+  chcon u:object_r:vendor_overlay_file:s0 /vendor/overlay/inkpalm-power.apk
+  sync; mount -o ro,remount /vendor; rm -f /data/local/tmp/inkpalm-power.apk
+  echo \"  power overlay: installed (both take effect after the next reboot)\"
+  '" | tr -d '\r'
+fi
+
 say "applying the native configuration (portrait, AOD, timeouts, radios off)"
 adb shell "su -c 'sh /sdcard/configure-native.sh && rm -f /sdcard/configure-native.sh && echo \"  configure-native done\"'" | tr -d '\r'
 adb shell "su -c 'sh /data/local/a11-boot-fixups.sh; echo \"  startup settings applied\"'" | tr -d '\r'
