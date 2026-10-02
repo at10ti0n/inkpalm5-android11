@@ -44,3 +44,13 @@ Fixed on the way: rapid changes could ratchet brightness up one step (one pendin
 v5 (2026-09-22): SET_LOCK_WALLPAPER also pins the wallpaper service's desired size to the portrait
 screen (SET_WALLPAPER_HINTS), so a screen-sized wallpaper is never scaled to a launcher's 2x-width
 parallax request. Does not change the keyguard's 10% platform zoom (docs/STANDBY-IMAGE.md).
+
+v7 (2026-10-02): long-press Home (the capacitive Moaan logo) = one full refresh, as requested
+by a tester. HomeKeyService is an accessibility service that filters key events and sees
+nothing else (no window content, no events). It holds Home back while it is down: released
+within the long-press timeout it performs the Home action, held past it it sets
+persist.sys.canRefresh=1. With the screen off it does not intercept, so the logo still wakes
+the device. MEASURED on the device with the real key path (sendevent on goodix-ts, KEY_HOMEPAGE):
+short press went home, a 1.2 s press refreshed and stayed in Settings, logo wake unchanged.
+Note `input keyevent` does not reach accessibility key filters, so test with sendevent.
+The installer enables it; Settings > Accessibility turns it off.

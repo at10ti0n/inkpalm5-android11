@@ -64,6 +64,15 @@ E=net.inkpalm.einktile
 settings put secure sysui_qs_tiles \"custom(\$E/.RotationTile),custom(\$E/.ModeTile),custom(\$E/.RefreshTile),wifi,bt,dnd,battery,airplane,night\"
 echo \"  tiles: \$(settings get secure sysui_qs_tiles)\"
 '" | tr -d '\r'
+# Long-press the Moaan logo (Home) = full refresh: einktile v7's key-only accessibility service.
+# Added to any services already enabled; turn it off in Settings > Accessibility.
+adb shell "su -c '
+S=net.inkpalm.einktile/net.inkpalm.einktile.HomeKeyService
+C=\$(settings get secure enabled_accessibility_services)
+case \"\$C\" in *\$S*) ;; null|\"\") settings put secure enabled_accessibility_services \$S ;; *) settings put secure enabled_accessibility_services \"\$C:\$S\" ;; esac
+settings put secure accessibility_enabled 1
+echo \"  long-press Home to refresh: on\"
+'" | tr -d '\r'
 
 # Wi-Fi: the 8.1 vendor wpa_supplicant double-frees in its SIGTERM cleanup, which Android 11's
 # allocator turns into a crash and a tombstone at every reboot. wifi/libwpaexit.c makes SIGTERM
