@@ -125,11 +125,23 @@ if [ -f "$A/inkpalm-screentemp-fw.apk" ]; then
   chmod 644 /vendor/overlay/inkpalm-screentemp.apk; chown 0:0 /vendor/overlay/inkpalm-screentemp.apk
   chcon u:object_r:vendor_overlay_file:s0 /vendor/overlay/inkpalm-screentemp.apk
   sync; mount -o ro,remount /vendor; rm -f /data/local/tmp/inkpalm-screentemp.apk
-  cmd overlay enable --user 0 net.inkpalm.overlay.screentemp.settings
-  cmd overlay enable --user 0 net.inkpalm.overlay.screentemp.systemui
-  echo \"  overlays installed (the framework one takes effect after the next reboot)\"
+  echo \"  framework overlay installed (takes effect after the next reboot)\"
   '" | tr -d '\r'
 fi
+# Enable the Settings/SystemUI overlays. A freshly installed overlay is not always registered
+# with the overlay manager yet, and enabling it then fails; a tester had to re-run the
+# installer to get the Screen Temperature slider. So wait for each one and check the result.
+adb shell "su -c '
+for o in net.inkpalm.overlay.screentemp.settings net.inkpalm.overlay.screentemp.systemui; do
+  pm path \$o >/dev/null 2>&1 || continue
+  i=0
+  until cmd overlay list | grep -q \"\\[x\\] \$o\"; do
+    [ \$i -ge 15 ] && break
+    cmd overlay enable --user 0 \$o >/dev/null 2>&1; sleep 2; i=\$((i+1))
+  done
+  cmd overlay list | grep -q \"\\[x\\] \$o\" && echo \"  \$o: enabled\" || echo \"  \$o: NOT ENABLED -- re-run this installer, or: cmd overlay enable \$o\"
+done
+'" | tr -d '\r'
 
 # Kernel suspend (docs/NATIVE-A11-SECOND-PASS.md). Two fixes, both needed:
 #  - SystemSuspend must start in class hal, not early_hal: early_hal runs before the 8.1 ramdisk
