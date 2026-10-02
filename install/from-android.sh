@@ -279,6 +279,39 @@ if [ -f "$A/services-powerpress.jar" ]; then
   fi
 fi
 
+# Optional: full-screen KOReader / Launcher3 (framework/patch-orientation.py). Apps that ask for
+# the display's natural orientation are letterboxed into 720x405 because this panel is natively
+# landscape. Patches YOUR services.jar on this machine (one method, hash-checked both ways) and
+# installs it with the original kept in /data/local. Runs after the standby step, so it stacks
+# on either jar. Undo: copy /data/local/services.jar.pre-orient back and reboot.
+if [ "${ORIENT_PATCH:-0}" = 1 ]; then
+  say "full-screen apps that ask for the natural orientation (framework patch)"
+  t=$(mktemp -d); adb shell "su -c 'cp /system/framework/services.jar /data/local/tmp/services-cur.jar; chmod 644 /data/local/tmp/services-cur.jar'"
+  adb pull /data/local/tmp/services-cur.jar "$t/cur.jar" >/dev/null; adb shell "rm -f /data/local/tmp/services-cur.jar"
+  rc=0; python3 "$R/framework/patch-orientation.py" "$t/cur.jar" "$t/orient.jar" || rc=$?
+  if [ $rc = 2 ]; then
+    echo "  already installed"
+  elif [ $rc = 0 ]; then
+    WANT=$(shasum -a256 "$t/orient.jar" | cut -d' ' -f1)
+    adb push "$t/orient.jar" /data/local/tmp/services-orient.jar >/dev/null
+    adb shell "su -c '
+      set -e
+      F=/system/framework
+      [ \"\$(sha256sum /data/local/tmp/services-orient.jar | cut -d\" \" -f1)\" = $WANT ]
+      mount -o rw,remount /system
+      cp -p \$F/services.jar /data/local/services.jar.pre-orient
+      mkdir -p /data/local/services-oat.pre-orient; for x in odex vdex art; do [ -f \$F/oat/arm/services.\$x ] && mv \$F/oat/arm/services.\$x /data/local/services-oat.pre-orient/ || true; done
+      cp /data/local/tmp/services-orient.jar \$F/services.jar
+      chmod 644 \$F/services.jar; chown 0:0 \$F/services.jar; chcon u:object_r:system_file:s0 \$F/services.jar
+      rm -f /data/local/tmp/services-orient.jar; sync
+      echo \"  installed (original kept as /data/local/services.jar.pre-orient)\"
+    '" | tr -d '\r'
+  else
+    echo "  SKIPPED -- services.jar on the device is not a build this patch was reviewed against"
+  fi
+  rm -rf "$t"
+fi
+
 say "rebooting"
 adb shell "su -c 'sync; reboot'" 2>/dev/null || true
 echo "When it comes back it should be PORTRAIT, touch aligned, with Brightness and Screen"

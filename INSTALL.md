@@ -128,7 +128,8 @@ bash install/from-android.sh ~/inkpalm-assets
 
 Installs the key layouts and touch config, adds the four Quick Settings tiles, applies the
 native configuration (locked portrait, lock-screen image, 2-minute timeout, Bluetooth and
-scanning off), and reboots.
+scanning off), sets up kernel suspend, and reboots. Optional extras are switched on by
+prefixing the command: `SF_PATCH=1` and `ORIENT_PATCH=1` (see Known issues).
 
 **When it comes back you are done.** Portrait, touch aligned, brightness slider working.
 
@@ -155,7 +156,7 @@ Nothing here is required, it is just what makes it a good reader:
 | **Text / Graphics** | the **Mode** tile — Text is faster and greyer, Graphics is slower and cleaner. Same two modes stock had. |
 | **Clear ghosting** | the **Refresh** tile does one full flash. |
 | **Page turns** | the side buttons are normal volume keys; turn on the reading app's own option: Kindle's "Turn pages with volume controls" setting, and KOReader's volume-key page-turning setting. |
-| **The Moaan logo** | Home, and wakes the device. |
+| **The Moaan logo** | Home, and wakes the device. **Hold it** (about half a second) for one full refresh, like the Refresh tile; turn that off in Settings → Accessibility → "Long-press Home to refresh". |
 | **Dark theme** | Android 11's own, works OS-wide: the **Dark theme** tile, or Settings → Display. Off by default — on a reflective E Ink panel, dark-on-light is usually the more readable way round. |
 
 ## If something goes wrong
@@ -264,6 +265,17 @@ is still caught.
   with no freeze since, which is too short to call it fixed; the root cause is not confirmed.
   See [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). If a freeze happens to you,
   send the contents of `/data/local/sf-hang/`.
+* **KOReader and the stock launcher (Launcher3) open letterboxed** in a small landscape box in
+  the middle of the screen. They ask Android for the display's *natural* orientation, and this
+  panel is natively landscape (Android rotates it to portrait). **Opt in to the fix with
+  `ORIENT_PATCH=1 bash install/from-android.sh ...`**: it patches one method of your own
+  `services.jar` on your computer (hash-checked both ways, byte-identical on every machine) so
+  that request means "no preference", and the app fills the screen in whatever orientation the
+  Orientation tile is set to. Tested on the author's device 2026-10-02, on the stock and the
+  standby-trial `services.jar`. If you rotate while KOReader is open it is boxed again until you
+  restart it (it declares itself non-resizable). Undo: copy
+  `/data/local/services.jar.pre-orient` back over `/system/framework/services.jar`, reboot.
+  Without the patch, a list launcher such as Unlauncher avoids it on the home screen.
 * **Landscape for a moment at every boot**, before the rotation lock applies.
 * **Battery life is not characterised yet.** Suspend works; long-term numbers are pending.
 * **Untested:** audio (no speaker on this device), Bluetooth (declared, kept off).
