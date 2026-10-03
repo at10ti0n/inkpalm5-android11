@@ -11,8 +11,13 @@
 D=${1:?usage: configure.sh <staging-dir>}
 cd "$D" || exit 1
 say() { echo; echo "== $*"; }
-put() {  # put <src> <dst> <selinux type>: copy as root:root 0644 with the given label
-  cp "$1" "$2" && chmod 644 "$2" && chown 0:0 "$2" && chcon "u:object_r:$3:s0" "$2"
+put() {  # put <src> <dst> <selinux type>: install as root:root 0644 with the given label
+  # Never rewrite a file in place: a running process (wpa_supplicant with libwpaexit.so,
+  # system_server with an overlay) has it mapped, and truncating it corrupts that process
+  # (MEASURED 2026-10-03: wpa_supplicant SIGSEGV in libwpaexit after an in-place copy).
+  # Identical files are left alone; changed ones get a new file renamed over the old name.
+  [ -f "$2" ] && [ "$(sha "$1")" = "$(sha "$2")" ] && return 0
+  cp "$1" "$2.new" && chmod 644 "$2.new" && chown 0:0 "$2.new" && chcon "u:object_r:$3:s0" "$2.new" && mv "$2.new" "$2"
 }
 rw() { mount -o rw,remount "$1"; }
 ro() { sync; mount -o ro,remount "$1" 2>/dev/null; }
