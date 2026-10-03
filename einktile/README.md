@@ -58,3 +58,10 @@ the device. MEASURED on the device with the real key path (sendevent on goodix-t
 short press went home, a 1.2 s press refreshed and stayed in Settings, logo wake unchanged.
 Note `input keyevent` does not reach accessibility key filters, so test with sendevent.
 The installer enables it; Settings > Accessibility turns it off.
+
+v8 (2026-10-04): the long-press refresh now actually flashes. The composer applies
+persist.sys.canRefresh only to the next frame it draws, and holding the logo changes nothing on
+screen, so v7 set the flag and nothing happened (MEASURED: flag still pending, no panel update;
+the user saw no flash). HomeKeyService now adds and removes a 1x1 transparent accessibility overlay
+for 300 ms to produce that frame. MEASURED with the real key path: panel update 91 ms after the
+hold, flag consumed. (No vibration motor on this device: vibrator.default.so has no kernel driver.)
