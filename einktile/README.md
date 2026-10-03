@@ -66,7 +66,9 @@ the user saw no flash). HomeKeyService now adds and removes a 1x1 transparent ac
 for 300 ms to produce that frame. MEASURED with the real key path: panel update 91 ms after the
 hold, flag consumed. (No vibration motor on this device: vibrator.default.so has no kernel driver.)
 
-v9 (2026-10-04): a real full refresh. Setting persist.sys.canRefresh only redraws the next frame in
+v9 (2026-10-04): a real full refresh. (A tester, u/aditvai on r/InkPalm5, had already found and
+posted the same sequence -- mode 4, canRefresh 1, `service call SurfaceFlinger 1004`, restore the
+mode -- in his own accessibility app two days earlier.) Setting persist.sys.canRefresh only redraws the next frame in
 the current mode (DU/GU16: no flash), so neither the Refresh tile nor the long-press logo ever
 flashed (user report). FullRefresh switches to GC16 (4), sets the one-shot, asks SurfaceFlinger to
 repaint (binder transaction 1004 -- accepted from the system UID), waits until the composer has

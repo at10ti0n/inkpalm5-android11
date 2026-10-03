@@ -32,5 +32,6 @@ system UID, no su). ADB one-liners (need su):
   clear ghosting now     : adb shell su -c 'setprop persist.sys.mRefreshMode 4; setprop persist.sys.canRefresh 1;
                            service call SurfaceFlinger 1004; sleep 1; setprop persist.sys.mRefreshMode 2'
                            (GC16 for one repainted frame = the black/white clearing flash; MEASURED: the
-                           composer draws mode=4 and the panel flashes. einktile's FullRefresh does this.)
+                           composer draws mode=4 and the panel flashes. einktile's FullRefresh does this.
+                           First found by a tester, u/aditvai on r/InkPalm5.)
 (The planned tile app is einktile/, since 2026-09-17.)

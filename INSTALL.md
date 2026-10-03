@@ -134,11 +134,11 @@ This was the working route into recovery throughout development. It asks the boo
 for recovery (it may also leave a boot request in the `misc` partition, which recovery
 clears); it does not touch anything else.
 
-**Or with the buttons** (the timing is finicky, not deterministic):
+**Or with the buttons** (reported working by a tester; the same method as Xiaomi phones):
 
-1. Unplug USB.
-2. Hold **Power** alone until the Moaan logo appears, then let go.
-3. Press and hold **Volume Up** only, and plug USB in while still holding it.
+1. Turn the device **off** and unplug USB.
+2. Press and hold **Volume Up** -- the device starts.
+3. Still holding Volume Up, plug the USB cable in.
 4. Keep holding until TWRP draws (~20 s). If it stays on the logo, unplug and repeat.
 
 Stuck on the logo either way? Hold **Power + Volume Down** for 15-20 s to force a restart.
