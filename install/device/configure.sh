@@ -101,6 +101,28 @@ else
   put android.system.suspend@1.0-service.rc $RC system_file && echo "  installed (original in /data/local/system-suspend.rc.stock)"
 fi
 
+if [ -f libsffencefinish.so ]; then
+  # Input lag: the vendor composer waits up to 3 s for SurfaceFlinger's GPU composition, because
+  # this Mali-400 driver only runs that job with later GPU work. The preload finishes the job
+  # before its fence is handed over (a11boot/libsffencefinish.c). One setenv line in the GSI's
+  # own surfaceflinger.rc; any other rc is left alone. Takes effect after the reboot.
+  say "display latency fix (SurfaceFlinger preload)"
+  SRC=/system/etc/init/surfaceflinger.rc
+  STOCK_SF_RC=f654d2f950e74e27f5f9a6124a7193769b8cd29b2558d3758580fdf526448cf7
+  rw /system
+  put libsffencefinish.so /system/lib/libsffencefinish.so system_lib_file
+  if grep -q libsffencefinish $SRC; then echo "  already installed"
+  elif [ "$(sha $SRC)" != "$STOCK_SF_RC" ]; then echo "  SKIPPED -- $SRC is not the GSI v313 file; add 'setenv LD_PRELOAD /system/lib/libsffencefinish.so' to the surfaceflinger service by hand"
+  else
+    [ -f /data/local/surfaceflinger.rc.stock ] || cp -p $SRC /data/local/surfaceflinger.rc.stock
+    sed 's|^    task_profiles HighPerformance|    task_profiles HighPerformance\n    setenv LD_PRELOAD /system/lib/libsffencefinish.so|' $SRC > $SRC.new
+    if grep -q libsffencefinish $SRC.new; then
+      chmod 644 $SRC.new; chown 0:0 $SRC.new; chcon u:object_r:system_file:s0 $SRC.new; mv $SRC.new $SRC
+      echo "  installed (original in /data/local/surfaceflinger.rc.stock)"
+    else rm -f $SRC.new; echo "  SKIPPED -- unexpected rc layout"; fi
+  fi
+fi
+
 if [ "${FIRST_TIME:-0}" = 1 ]; then
   say "one-time defaults (portrait, AOD off, timeouts, radios off)"
   sh configure-native.sh && echo "  done"

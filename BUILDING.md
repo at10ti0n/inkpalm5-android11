@@ -38,6 +38,7 @@ MODE_TEXT=2 MODE_GRAPHICS=132 bash einktile/build.sh     # -> einktile/build/ein
 bash overlays/aod/build.sh                               # -> overlays/aod/build/inkpalm-aod.apk
 bash overlays/power/build.sh                             # -> overlays/power/build/inkpalm-power.apk (suspend)
 $NDK/armv7a-linux-androideabi27-clang -shared -fPIC -O2 -o build/libwpaexit.so wifi/libwpaexit.c -ldl   # Wi-Fi shutdown crash
+$NDK/armv7a-linux-androideabi28-clang -shared -fPIC -O2 -Wall -Wl,-z,now -o build/libsffencefinish.so a11boot/libsffencefinish.c -ldl   # input lag
 for o in screentemp-fw screentemp-settings screentemp-systemui nomodem; do    # Screen Temperature; no-modem
   bash overlays/build-platform-overlay.sh overlays/$o    # -> overlays/$o/build/inkpalm-$o.apk
 done
@@ -95,6 +96,7 @@ why each piece is needed.
 | `inkpalm-power.apk` | `/vendor/overlay/` (must be preinstalled) — lets autosuspend run in doze; pairs with `configs/android.system.suspend@1.0-service.rc` (SystemSuspend in `class hal`). Both are needed for kernel suspend ([docs/NATIVE-A11-SECOND-PASS.md](docs/NATIVE-A11-SECOND-PASS.md)). Signed with its own throwaway key, so a rebuild differs byte-wise from the release file |
 | `einktile.apk` | Quick Settings tiles: Text/Graphics, full refresh, portrait/landscape; lock-wallpaper receiver; ScreenTempService, which maps Night Light onto the warm LEDs (v6); HomeKeyService, hold the logo for a full refresh (v7) |
 | `libwpaexit.so` | `/vendor/lib/` + a `setenv LD_PRELOAD` line in the vendor Wi-Fi service — the Wi-Fi daemon exits cleanly at shutdown instead of crashing ([wifi/README.md](wifi/README.md)) |
+| `libsffencefinish.so` | `/system/lib/` + a `setenv LD_PRELOAD` line in surfaceflinger.rc -- removes the 3 s composer wait behind the input lag ([docs/INPUT-LATENCY.md](docs/INPUT-LATENCY.md)) |
 | `inkpalm-nomodem.apk` | `/vendor/overlay/` (must be preinstalled) — declares no mobile data, so Android creates no phone/RIL; ends the phone process's endless wait for the radio HAL (two ANRs at every boot) |
 | `inkpalm-screentemp-fw.apk` | `/vendor/overlay/` (must be preinstalled) — Night Light tint set to identity, so it no longer greys the panel |
 | `inkpalm-screentemp-settings.apk`, `inkpalm-screentemp-systemui.apk` | ordinary packages — rename Night Light to Screen Temperature; trim the Quick Settings Edit list to this hardware |

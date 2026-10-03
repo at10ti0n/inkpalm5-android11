@@ -50,7 +50,7 @@ CONFIG_FILES = ["configs/sunxi-gpadc0.kl", "configs/sunxi-keyboard.kl", "configs
                 "tools/sf-capture.sh", "docs/images/standby.png", "install/device/configure.sh"]
 OPTIONAL_ASSETS = ["libwpaexit.so", "inkpalm-nomodem.apk", "inkpalm-screentemp-fw.apk",
                    "inkpalm-screentemp-settings.apk", "inkpalm-screentemp-systemui.apk",
-                   "inkpalm-power.apk", "SystemUI-warmth.apk"]
+                   "inkpalm-power.apk", "SystemUI-warmth.apk", "libsffencefinish.so"]
 WIN = platform.system() == "Windows"
 ADB = "adb"
 ARGS = None
