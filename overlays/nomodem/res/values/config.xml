@@ -8,4 +8,9 @@
          three false and no multi-SIM config, the count is 0: the standard Wi-Fi-only tablet setup.
          Must be preinstalled and static (system_server ignores /data framework overlays). -->
     <bool name="config_mobile_data_capable">false</bool>
+    <!-- When the default network (Wi-Fi) drops, ConnectivityService holds a wake lock for this long
+         while it waits for another network to take over. With no modem nothing ever does, so the
+         device stayed awake 60 s after every Wi-Fi disconnect (MEASURED: batterystats shows 60 s
+         "ConnectivityService" wake locks starting at wifi_suppl=disconn). Suggested by a tester. -->
+    <integer name="config_networkTransitionTimeout">5000</integer>
 </resources>
