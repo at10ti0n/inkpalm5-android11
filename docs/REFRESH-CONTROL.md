@@ -16,7 +16,11 @@ an automatic full refresh; stock 0.
 Live-verified (13:28): setprop persist.sys.mRefreshMode 2  -> log mode=2   (DU, fastest)
                        setprop persist.sys.mRefreshMode 16 -> log mode=10  (A2, fast)
                        setprop persist.sys.mRefreshMode 132 (0x84, stock quality default)
-                       setprop persist.sys.canRefresh 1     -> one full refresh, self-clears
+                       setprop persist.sys.canRefresh 1     -> self-clears, but redraws the NEXT frame in the
+                                                               CURRENT mode: no flash in DU or GU16, and nothing
+                                                               at all if no frame comes (CORRECTED 2026-10-04:
+                                                               "one full refresh" was log-only, never checked on
+                                                               the panel; the user saw no flash)
 Effect is immediate; no restart.  Waveform bit names (Allwinner eink): 0x02 DU, 0x04 GC16,
 0x08 GC4, 0x10 A2, 0x20 GL16/GU16, 0x40 GLR16, 0x80 GLD16 -- INFERRED from the vendor
 enum convention; DU/A2/0x84 behaviour confirmed by the log, panel look not yet compared.
@@ -25,5 +29,8 @@ Day to day: the Mode and Refresh tiles, or hold the Moaan logo for a full refres
 system UID, no su). ADB one-liners (need su):
   fast reading/scrolling : adb shell su -c 'setprop persist.sys.mRefreshMode 2'
   quality                : adb shell su -c 'setprop persist.sys.mRefreshMode 132'
-  clear ghosting now     : adb shell su -c 'setprop persist.sys.canRefresh 1'
+  clear ghosting now     : adb shell su -c 'setprop persist.sys.mRefreshMode 4; setprop persist.sys.canRefresh 1;
+                           service call SurfaceFlinger 1004; sleep 1; setprop persist.sys.mRefreshMode 2'
+                           (GC16 for one repainted frame = the black/white clearing flash; MEASURED: the
+                           composer draws mode=4 and the panel flashes. einktile's FullRefresh does this.)
 (The planned tile app is einktile/, since 2026-09-17.)

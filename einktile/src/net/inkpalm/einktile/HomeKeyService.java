@@ -3,9 +3,6 @@ import android.accessibilityservice.AccessibilityService;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
-import android.graphics.PixelFormat;
-import android.view.View;
-import android.view.WindowManager;
 import android.util.Log;
 import android.view.ViewConfiguration;
 import android.view.KeyEvent;
@@ -17,9 +14,8 @@ import android.view.accessibility.AccessibilityEvent;
  * instead.
  * Screen off: not touched, so the logo still wakes the device as before. Enabled by the
  * installer (enabled_accessibility_services); turn off in Settings > Accessibility.
- * The composer applies persist.sys.canRefresh only to the NEXT frame it draws, and holding the
- * logo changes nothing on screen (MEASURED 2026-10-04: flag set, no panel update, no flash), so a
- * 1x1 transparent accessibility overlay is added and removed to produce that frame. */
+ * The refresh itself is FullRefresh (GC16 + a SurfaceFlinger repaint): holding the logo changes
+ * nothing on screen, so without the repaint no frame would carry the refresh. */
 public class HomeKeyService extends AccessibilityService {
     private final Handler h = new Handler(Looper.getMainLooper());
     private boolean down, fired;
@@ -48,20 +44,8 @@ public class HomeKeyService extends AccessibilityService {
     }
     private void refresh(){
         if (fired) return;
-        fired = true; Props.set(Props.ONESHOT, "1"); Log.i("einktile", "long-press Home: full refresh");
-        kick();
-    }
-    private void kick(){
-        final WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-        if (wm == null) return;
-        final View v = new View(this);
-        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(1, 1,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            PixelFormat.TRANSPARENT);
-        try { wm.addView(v, lp); } catch (RuntimeException e) { return; }
-        h.postDelayed(new Runnable(){ @Override public void run(){
-            try { wm.removeView(v); } catch (RuntimeException e) {} } }, 300);
+        fired = true; Log.i("einktile", "long-press Home: full refresh");
+        FullRefresh.run();
     }
     @Override public void onAccessibilityEvent(AccessibilityEvent e){}
     @Override public void onInterrupt(){ h.removeCallbacks(longPress); down = false; }
