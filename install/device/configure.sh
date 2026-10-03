@@ -29,15 +29,20 @@ cp sunxi-gpadc0.kl sunxi-keyboard.kl pmu1736-powerkey.kl Vendor_dead_Product_bee
 cp Vendor_dead_Product_beef.idc /data/system/devices/idc/
 chown -R system:system /data/system/devices
 chmod 644 /data/system/devices/keylayout/*.kl /data/system/devices/idc/*.idc
-for f in a11-boot-fixups.sh sf-watch.sh sf-capture.sh; do cp $f /data/local/$f; chmod 755 /data/local/$f; done
-[ -f threadregs.bin ] && cp threadregs.bin /data/local/threadregs && chmod 755 /data/local/threadregs
+# sf-watch.sh runs permanently: replace by rename, never rewrite it under the running shell.
+for f in a11-boot-fixups.sh sf-watch.sh sf-capture.sh; do cp $f /data/local/$f.new && chmod 755 /data/local/$f.new && mv /data/local/$f.new /data/local/$f; done
+[ -f threadregs.bin ] && cp threadregs.bin /data/local/threadregs.new && chmod 755 /data/local/threadregs.new && mv /data/local/threadregs.new /data/local/threadregs
 echo "  installed"
 
 if [ -f libsurfaceflinger-patched.so ]; then
   say "SurfaceFlinger freeze workaround (staged; the boot image mounts it at the next boot)"
-  cp libsurfaceflinger-patched.so /data/local/libsurfaceflinger-patched.so
-  chown root:root /data/local/libsurfaceflinger-patched.so; chmod 644 /data/local/libsurfaceflinger-patched.so
-  echo "  staged ($(sha /data/local/libsurfaceflinger-patched.so | cut -c1-16))"
+  # /data/local/libsurfaceflinger-patched.so is bind-mounted over the running SurfaceFlinger's
+  # library: never write it in place (truncating a mapped library crashes the process).
+  T=/data/local/libsurfaceflinger-patched.so
+  if [ -f $T ] && [ "$(sha libsurfaceflinger-patched.so)" = "$(sha $T)" ]; then echo "  already staged"
+  elif cp libsurfaceflinger-patched.so $T.new && chown root:root $T.new && chmod 644 $T.new && mv $T.new $T; then
+    echo "  staged ($(sha $T | cut -c1-16))"
+  else rm -f $T.new; echo "  FAILED to stage (previous copy, if any, unchanged)"; fi
 fi
 
 say "E-Ink tiles app"
@@ -102,16 +107,18 @@ else
 fi
 
 if [ -f libsffencefinish.so ]; then
-  # Input lag: the vendor composer waits up to 3 s for SurfaceFlinger's GPU composition, because
-  # this Mali-400 driver only runs that job with later GPU work. The preload finishes the job
-  # before its fence is handed over (a11boot/libsffencefinish.c). One setenv line in the GSI's
+  # Input lag: the vendor composer waited up to 3 s for SurfaceFlinger's GPU composition fence
+  # (docs/INPUT-LATENCY.md). The preload calls glFinish() before that fence is handed over
+  # (a11boot/libsffencefinish.c); why the fence was late is not established. One setenv line in the GSI's
   # own surfaceflinger.rc; any other rc is left alone. Takes effect after the reboot.
   say "display latency fix (SurfaceFlinger preload)"
   SRC=/system/etc/init/surfaceflinger.rc
   STOCK_SF_RC=f654d2f950e74e27f5f9a6124a7193769b8cd29b2558d3758580fdf526448cf7
   rw /system
   put libsffencefinish.so /system/lib/libsffencefinish.so system_lib_file
-  if grep -q libsffencefinish $SRC; then echo "  already installed"
+  # Only point SurfaceFlinger at the library once it is verifiably in place.
+  if [ "$(sha /system/lib/libsffencefinish.so)" != "$(sha libsffencefinish.so)" ]; then echo "  FAILED to install /system/lib/libsffencefinish.so -- surfaceflinger.rc left unchanged"
+  elif grep -q libsffencefinish $SRC; then echo "  already installed"
   elif [ "$(sha $SRC)" != "$STOCK_SF_RC" ]; then echo "  SKIPPED -- $SRC is not the GSI v313 file; add 'setenv LD_PRELOAD /system/lib/libsffencefinish.so' to the surfaceflinger service by hand"
   else
     [ -f /data/local/surfaceflinger.rc.stock ] || cp -p $SRC /data/local/surfaceflinger.rc.stock

@@ -17,17 +17,24 @@ bursts. The waveform made no difference (Text/DU and A2 measured the same).
 composer's commit thread logged `normal commit start`, then waited **exactly 3.0 s** before
 committing whenever the screen had been idle (~7 ms inside a burst): a timed-out wait on the
 layer's acquire fence, i.e. the native fence of SurfaceFlinger's GPU composition (Colors =
-Boosted makes every frame GPU-composed). This Mali-400 MP (Utgard, driver r8p1) does not run the
-job when RenderEngine `glFlush()`es its offscreen composition, only with later GL work, so the
-last frame of every burst -- the keystroke you are waiting to see -- waited for the timeout.
-Earlier, SurfaceFlinger itself also blocked on that fence ("Throttling EGL Production").
+Boosted makes every frame GPU-composed). So the last frame of every burst -- the keystroke you are
+waiting to see -- waited for the timeout. Earlier, SurfaceFlinger itself also blocked on that fence
+("Throttling EGL Production"). **Why** that fence was late on this Mali-400 MP (Utgard, driver
+r8p1) is not established: deferred execution of the job after `glFlush()`, delayed fence
+signalling, or another timing interaction would all be resolved by the same `glFinish()`. The
+experiments show an effective workaround, not the driver-level mechanism.
 
 **Fix.** `a11boot/libsffencefinish.c`, LD_PRELOADed into surfaceflinger only (one `setenv` line in
 `/system/etc/init/surfaceflinger.rc`, added by the installer to the GSI's own file, original kept in
 `/data/local/surfaceflinger.rc.stock`). It interposes `eglDupNativeFenceFDANDROID`, which
 GLESRenderEngine::flush() calls right after `glFlush()`, and runs `glFinish()` first, so the fence
-the composer receives is already signalled. SurfaceFlinger now waits for the GPU on every frame;
-in the measurements frames stay well inside the 62.5 ms period.
+the composer receives is already signalled. SurfaceFlinger now waits for the GPU on every frame.
+Measured ready->shown: median 70 ms, max 185 ms -- the multi-second stalls are gone, but the median
+is slightly longer than the 62.5 ms display period, so frames are not "well inside" one period.
+Scope: the hook applies to every call of that function in SurfaceFlinger, and `glFinish()` only
+finishes the calling thread's current context; in AOSP 11 RenderEngine (including screenshots)
+uses one context on SurfaceFlinger's main thread, but other callers or a threaded RenderEngine are
+not verified. Battery and suspend cost have not been measured yet.
 
 **Side effects.** With frames this fast, SurfaceFlinger shows only the newest frame per refresh:
 a keyboard key popup that lasts less than one refresh may not be shown at all when typing fast
