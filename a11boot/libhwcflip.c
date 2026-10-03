@@ -106,13 +106,23 @@ static void fix_layer(uint8_t *cfg){
     if(m!=MAP_FAILED){ unsigned i=g_shi; g_shi=(g_shi+1)%NSHADOW; flip_rows_copy(m,g_sh[i].map,w,h,bpp,stride); munmap(m,len); int nfd=g_sh[i].fd; memcpy(cfg+32,&nfd,4); g_flipped++; if(g_flipped%50==1) probe("vendor.hwcflip.flipped",g_flipped); } else probe("vendor.hwcflip.mmapfail",g_calls);
     if(sw && sx+sw<=1280){ uint32_t nx=1280-sx-sw; memcpy(cfg+8,&nx,4); }   /* mirror screen_win.x */
 }
+static int64_t mono_us(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return (int64_t)t.tv_sec*1000000LL+t.tv_nsec/1000; }
+/* vendor.hwcflip.trace=1: log per panel update the mirror-copy time, how long the kernel's
+ * UPDATE2 call blocks, and the gap since the previous update (diagnosis of input latency). */
+static int trace_on(void){ static int64_t at; static int on; int64_t t=mono_us();
+    if(t-at>1000000){ char v[92]; on=__system_property_get("vendor.hwcflip.trace",v)>0 && v[0]=='1'; at=t; } return on; }
 int ioctl(int fd,int req,...){
     va_list ap; va_start(ap,req); void *arg=va_arg(ap,void*); va_end(ap);
     if(!real_ioctl) real_ioctl=(ioctl_fn)dlsym(RTLD_NEXT,"ioctl");
     ++g_all; if(g_all%64==1) probe("vendor.hwcflip.all",g_all);   /* a property write per syscall was too much */
-    if(req==CMD_UPDATE2 && arg){ unsigned long *a=arg; unsigned n=(unsigned)a[1]; uint8_t *cfg=(uint8_t*)a[3];
-        if(cfg && n>=1 && n<=32){ for(unsigned i=0;i<n;i++){ uint8_t *L=cfg+(size_t)i*CFG_LEN; int lfd; memcpy(&lfd,L+32,4); if(L[184]==1 && lfd>0) fix_layer(L); } } }
-    return real_ioctl(fd,req,arg);
+    if(req!=CMD_UPDATE2 || !arg) return real_ioctl(fd,req,arg);
+    static int64_t prev; int tr=trace_on(); int64_t t0=tr?mono_us():0;
+    unsigned long *a=arg; unsigned n=(unsigned)a[1]; uint8_t *cfg=(uint8_t*)a[3];
+    if(cfg && n>=1 && n<=32){ for(unsigned i=0;i<n;i++){ uint8_t *L=cfg+(size_t)i*CFG_LEN; int lfd; memcpy(&lfd,L+32,4); if(L[184]==1 && lfd>0) fix_layer(L); } }
+    int64_t t1=tr?mono_us():0;
+    int r=real_ioctl(fd,req,arg);
+    if(tr){ int64_t t2=mono_us(); lg("trace upd copy=%uus ioctl=%uus gap=%ums layers=%u",(unsigned)(t1-t0),(unsigned)(t2-t1),(unsigned)(prev?(t0-prev)/1000:0),n); prev=t0; }
+    return r;
 }
 
 /* ------------------------------------------------------------------------------------------ */
