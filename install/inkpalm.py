@@ -46,7 +46,8 @@ NEED = ["boot-android11-epd105.img", "twrp-epd105.img", "libhwcflip.so", "lights
 CONFIG_FILES = ["configs/sunxi-gpadc0.kl", "configs/sunxi-keyboard.kl", "configs/pmu1736-powerkey.kl",
                 "configs/Vendor_dead_Product_beef.kl", "configs/Vendor_dead_Product_beef.idc",
                 "configs/a11-boot-fixups.sh", "configs/configure-native.sh",
-                "configs/android.system.suspend@1.0-service.rc", "tools/sf-watch.sh",
+                "configs/android.system.suspend@1.0-service.rc", "configs/zz-inkpalm-profiles.rc",
+                "tools/sf-watch.sh",
                 "tools/sf-capture.sh", "docs/images/standby.png", "install/device/configure.sh"]
 OPTIONAL_ASSETS = ["libwpaexit.so", "inkpalm-nomodem.apk", "inkpalm-screentemp-fw.apk",
                    "inkpalm-screentemp-settings.apk", "inkpalm-screentemp-systemui.apk",

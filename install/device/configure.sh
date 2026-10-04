@@ -94,6 +94,14 @@ for o in net.inkpalm.overlay.screentemp.settings net.inkpalm.overlay.screentemp.
   cmd overlay list | grep -q "\[x\] $o" && echo "  $o: enabled" || echo "  $o: NOT ENABLED -- re-run, or: cmd overlay enable $o"
 done
 
+if [ -f zz-inkpalm-profiles.rc ]; then
+  # Apps could not record JIT profiles: phh's apex-setup.rc loses the /data_mirror/cur_profiles
+  # mount (configs/zz-inkpalm-profiles.rc). Takes effect at the next boot.
+  say "app usage profiles (JIT profile mirror)"
+  rw /system
+  put zz-inkpalm-profiles.rc /system/etc/init/zz-inkpalm-profiles.rc system_file && echo "  installed"
+fi
+
 say "kernel suspend: SystemSuspend start order (docs/NATIVE-A11-SECOND-PASS.md)"
 RC=/system/etc/init/android.system.suspend@1.0-service.rc
 STOCK_RC=c7164caf27ccdc9df71555d54006d087be131ef0afa5bd380b42bb9c5726eb67

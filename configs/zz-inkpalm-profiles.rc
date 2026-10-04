@@ -1,0 +1,10 @@
+# JIT profile mirror for app processes (Android 11 app data isolation reads
+# /data_mirror/cur_profiles). phh v313's apex-setup.rc creates this bind mount in an earlier
+# trigger, then its "on post-fs-data" mounts a fresh tmpfs over /data_mirror and only redoes the
+# data_ce/data_de mirrors -- so apps never recorded usage profiles (MEASURED 2026-10-04: Kindle,
+# KOReader, Unlauncher primary.prof all 0 bytes; with the mount, Kindle's grew to 58,820 bytes in
+# two minutes). Same lines as AOSP 11 init.rc. Named zz- so init parses it after apex-setup.rc and
+# this post-fs-data action runs after that tmpfs mount. Reported by a tester.
+on post-fs-data
+    mkdir /data_mirror/cur_profiles 0700 root root
+    mount none /data/misc/profiles/cur /data_mirror/cur_profiles bind rec
