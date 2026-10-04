@@ -5,7 +5,7 @@
 # was doing. Only a live CPU profile and a register-bearing tombstone can answer that.
 #
 #   run now:  adb shell su -c 'setsid sh /data/local/sf-watch.sh >/dev/null 2>&1 &'
-#   status:   adb shell su -c 'cat /data/local/sf-hang/status; ls /data/local/sf-hang'
+#   status:   adb shell su -c 'cat /dev/sf-watch.status; ls /data/local/sf-hang'
 #
 # RECOVERY. After the capture completes -- never before, the evidence comes first -- this
 # kills SurfaceFlinger, which init restarts and which takes system_server with it. MEASURED
@@ -23,6 +23,10 @@
 # suspended it simply does not tick. It keeps watching after a capture instead of exiting.
 set -u
 OUT=/data/local/sf-hang
+# The per-sample status line is diagnostic only: keep it in RAM (/dev is tmpfs) instead of
+# rewriting a file on the eMMC every INTERVAL while awake (suggested by a tester). Captures and the
+# log stay in $OUT, on storage, because they must survive a reboot.
+STATUS=/dev/sf-watch.status
 CAP=/data/local/sf-capture.sh
 BUSY_PCT=80          # of one core
 BUSY_N=3             # consecutive intervals over BUSY_PCT before capturing
@@ -101,7 +105,7 @@ while :; do
     hot=0; hot_tid=
   fi
   comm=; [ -n "$top_tid" ] && [ -r /proc/$pid/task/$top_tid/comm ] && read -r comm < /proc/$pid/task/$top_tid/comm
-  echo "$(date '+%m-%d %H:%M:%S') pid=$pid top=${top_pct}% tid=${top_tid:-none} comm=${comm:-?} hot=$hot" > "$OUT/status"
+  echo "$(date '+%m-%d %H:%M:%S') pid=$pid top=${top_pct}% tid=${top_tid:-none} comm=${comm:-?} hot=$hot" > "$STATUS"
 
   if [ "$hot" -ge "$BUSY_N" ] && { [ -z "$last_cap" ] || [ $((now - last_cap)) -ge "$COOLDOWN" ]; }; then
     d="$OUT/capture-$(date '+%Y%m%d-%H%M%S')"
