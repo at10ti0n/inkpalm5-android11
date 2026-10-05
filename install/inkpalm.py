@@ -408,12 +408,68 @@ def configure(first_time):
     rot = shell("settings get system user_rotation", check=False)
     info("portrait: " + ("yes" if rot == "1" else f"user_rotation={rot}"))
 
+APEX_RC = "/system/etc/init/apex-setup.rc"
+APEX_ORIG = "edb1f2cfb75da475f0018201fed77b87cbf1020d7d525aa69a36eceb6dd95af6"   # phh v313
+APEX_PATCHED = "bb4e0ac6bc2e8c0ec9b18e7faa885bef025f8d49b4bd6ce9c60cdb25ffa5808f"  # tested result
+
+def native_adb():
+    """Switch ADB from phh's fallback daemon to the init-managed adbd, so `adb root` and
+    reconnects work (docs/NATIVE-A11-SECOND-PASS.md). Armed with the tested rollback: unless
+    this computer confirms ADB within 120 s of the next boot, the device restores the old
+    setup and reboots by itself."""
+    say("native ADB (init-managed adbd)")
+    cur = root(f"sha256sum {APEX_RC}").split()[0]
+    link = root("readlink /system/bin/adbd", check=False)
+    if cur == APEX_PATCHED and link == "/apex/com.android.adbd/bin/adbd":
+        info("already installed"); return
+    if cur != APEX_ORIG:
+        info(f"SKIPPED -- {APEX_RC} is not the PHH v313 original ({cur[:16]}); ADB stays as it is"); return
+    t = tempfile.mkdtemp(); st = "/data/local/tmp/inkpalm-usb"
+    try:
+        root(f"rm -rf {st}; mkdir -p {st}; cp {APEX_RC} {st}/orig.rc; chmod 644 {st}/orig.rc")
+        adb("pull", f"{st}/orig.rc", os.path.join(t, "orig.rc"))
+        out = os.path.join(t, "apex-setup.rc.patched")
+        r = subprocess.run([sys.executable, os.path.join(REPO, "configs", "native-usb", "patch-apex.py"),
+                            os.path.join(t, "orig.rc"), out], capture_output=True, text=True)
+        if r.returncode != 0 or sha256(out) != APEX_PATCHED:
+            info("SKIPPED -- the patch did not produce the tested file; ADB stays as it is"); return
+        open(out + ".sha256", "w").write(APEX_PATCHED)
+        for f in (out, out + ".sha256", os.path.join(REPO, "configs", "native-usb", "boot-trial.sh"),
+                  os.path.join(REPO, "configs", "native-usb", "rollback.sh"),
+                  os.path.join(REPO, "install", "device", "native-adb.sh")):
+            adb("push", f, f"{st}/")
+    finally:
+        shutil.rmtree(t, ignore_errors=True)
+    if not run_device(f"su -c 'sh {st}/native-adb.sh {st}'", "== native ADB staged"):
+        root(f"rm -rf {st}", check=False)
+        die("native ADB staging failed on the device (see above); nothing was switched")
+    root(f"rm -rf {st}", check=False)
+    info("rebooting; the device restores the old ADB by itself if the new one does not come up")
+    root("sync; reboot", check=False)
+    time.sleep(15)
+    t0 = time.time(); ok = False
+    while time.time() - t0 < 300:
+        if state() == "device" and "uid=0" in root("id", check=False):
+            ok = True; break
+        time.sleep(3)
+    if ok:
+        root("touch /data/local/stock-second-pass/usb-accepted")
+        for _ in range(30):
+            if root("cat /data/local/stock-second-pass/usb-status", check=False) == "accepted": break
+            time.sleep(2)
+        n = root("ps -A -o ppid,comm | grep -c \"^ *1 adbd\"", check=False)
+        info(f"native ADB accepted (init-managed adbd: {n}); `adb root` now restarts it cleanly")
+    else:
+        info("native ADB did not come up; the device rolls back by itself and reboots. Waiting...")
+        wait_booted(15)
+        die("native ADB was rolled back automatically; your old ADB is back. Please report this.")
+
 # ---------------------------------------------------------------- main
 def main():
     global ARGS
     ap = argparse.ArgumentParser(description="InkPalm 5 Pro Mini: Android 11 installer")
     ap.add_argument("phase", nargs="?", default="auto",
-                    choices=["auto", "check", "backup", "flash-twrp", "twrp-install", "configure"])
+                    choices=["auto", "check", "backup", "flash-twrp", "twrp-install", "configure", "native-adb"])
     ap.add_argument("--assets"); ap.add_argument("--gsi")
     ap.add_argument("--sf-patch", action="store_true")
     ap.add_argument("--orient-patch", dest="orient_patch", action="store_true", default=True, help=argparse.SUPPRESS)
@@ -428,7 +484,7 @@ def main():
 
     if ARGS.phase != "auto":
         {"check": check_stock, "backup": backup, "flash-twrp": flash_twrp,
-         "twrp-install": twrp_install,
+         "twrp-install": twrp_install, "native-adb": native_adb,
          "configure": lambda: configure(ARGS.first_time)}[ARGS.phase]()
         return
 
@@ -448,8 +504,10 @@ def main():
         if not s.get("data_backup_done"): twrp_data_backup()
         twrp_install()
         configure(first_time=True)
+        native_adb()
     elif w == "a11":
         configure(first_time=ARGS.first_time or not s.get("configured") and s.get("installed", False))
+        native_adb()
     else:
         die(f"don't know what to do with the device in state '{w}'. " + usb_help())
     say("done")
