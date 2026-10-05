@@ -56,6 +56,9 @@ public class RotationTile extends TileService {
 
     @Override public void onClick() {
         int target = isPortrait() ? 0 : 1;
+        // Record the choice first: ScreenTempService's rotation guard restores this value if
+        // anything else rewrites user_rotation.
+        Props.set(ScreenTempService.ROT_PROP, Integer.toString(target));
         try {
             boolean sensor = Settings.System.putInt(getContentResolver(),
                     Settings.System.ACCELEROMETER_ROTATION, 1);

@@ -39,7 +39,24 @@ public class ScreenTempService extends Service {
     static final int MAX_LEVEL = 23;   // warmth rows 1..23; see frontlight/lights_epd105.c
 
     private final Handler mH = new Handler(Looper.getMainLooper());
-    private ContentObserver mObs;
+    private ContentObserver mObs, mRotObs;
+
+    /* Rotation guard. The display follows only Settings.System.USER_ROTATION (fixed-to-user
+     * rotation, configure-native.sh), and on this port something privileged rewrites it when
+     * certain apps start: MEASURED 2026-10-05, opening Aurora Store flipped user_rotation 1 -> 0
+     * within 2 s via a thawDisplayRotation binder call (written as package "android"), turning
+     * the panel to landscape and making Aurora recreate its screen; KOReader did the same in
+     * September. The Orientation tile is the only intended control: it records the choice in
+     * ROT_PROP, and any other change is put back at once. Event-driven, no polling. */
+    static final String ROT_PROP = "persist.sys.inkpalm.rotation";
+    private void guardRotation() {
+        String want = Props.get(ROT_PROP);
+        if (want == null || want.isEmpty()) want = "1";             // portrait unless the tile said otherwise
+        int cur = Settings.System.getInt(getContentResolver(), Settings.System.USER_ROTATION, -1);
+        if (Integer.toString(cur).equals(want)) return;
+        Log.w(TAG, "user_rotation changed to " + cur + " outside the Orientation tile; restoring " + want);
+        Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, Integer.parseInt(want));
+    }
 
     public static void start(Context c) {
         try { c.startService(new Intent(c, ScreenTempService.class)); }
@@ -52,13 +69,22 @@ public class ScreenTempService extends Service {
         };
         getContentResolver().registerContentObserver(Settings.Secure.getUriFor(ACTIVATED), false, mObs);
         getContentResolver().registerContentObserver(Settings.Secure.getUriFor(TEMP), false, mObs);
+        mRotObs = new ContentObserver(mH) {
+            @Override public void onChange(boolean self, Uri uri) { guardRotation(); }
+        };
+        getContentResolver().registerContentObserver(
+                Settings.System.getUriFor(Settings.System.USER_ROTATION), false, mRotObs);
+        guardRotation();
     }
 
     @Override public int onStartCommand(Intent i, int flags, int id) {
         Log.i(TAG, "running");
         apply("start"); return START_STICKY;
     }
-    @Override public void onDestroy() { getContentResolver().unregisterContentObserver(mObs); }
+    @Override public void onDestroy() {
+        getContentResolver().unregisterContentObserver(mObs);
+        if (mRotObs != null) getContentResolver().unregisterContentObserver(mRotObs);
+    }
     @Override public IBinder onBind(Intent i) { return null; }
 
     private static int sysInt(String name, int dflt) {

@@ -75,3 +75,12 @@ repaint (binder transaction 1004 -- accepted from the system UID), waits until t
 consumed the one-shot, and restores the user's mode. Used by the tile, the logo hold and the
 android.eink.force.refresh broadcast. MEASURED: composer drew mode=4 52 ms after a logo hold; mode
 restored; the user saw the flash (manual GC16 test). v8's overlay kick is replaced by the repaint.
+
+v10 (2026-10-05): rotation guard. Opening Aurora Store flipped the panel to landscape (and made
+Aurora recreate its screen, i.e. "reload"): MEASURED, user_rotation went 1 -> 0 within 2 s of the
+launch, written as package "android" right after a WindowManagerService.thawDisplayRotation binder
+call; Aurora itself requests no orientation. KOReader caused the same in September. The
+Orientation tile now records the chosen rotation in persist.sys.inkpalm.rotation, and
+ScreenTempService (always running) watches user_rotation and puts the recorded value back when
+anything else changes it (event-driven ContentObserver, no polling). MEASURED: three Aurora
+launches stayed portrait (one restore logged); tile-style changes to landscape and back are kept.
