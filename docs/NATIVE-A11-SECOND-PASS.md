@@ -73,8 +73,10 @@ or manipulate display/calibration data. No binary patch was needed.
 > device) and arms the rollback guard below: unless the computer confirms ADB within 120 s of the
 > reboot, the device restores phh's fallback by itself. MEASURED 2026-10-05 from a fresh-install
 > state: accepted, one init-managed adbd (PPID 1), sentinel gone, ffs.ready=1.
-> Observed while preparing that test: on the fallback, ADB took more than 7 minutes to appear
-> after a reboot (or only after a cable replug), and it reports the serial `phh`.
+> Note: on the fallback ADB reports the serial `phh`, so macOS treats it as a new USB accessory
+> and waits for "Allow accessory to connect" before adb can see it. (While preparing that test the
+> device looked absent for 7+ minutes for exactly this reason -- an unanswered macOS prompt, not a
+> slow device.)
 
 The stock init registers `adbd /system/bin/adbd`, but that executable path was absent.
 PHH later declares a duplicate APEX-based adbd service using `override`, unsupported

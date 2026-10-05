@@ -228,8 +228,7 @@ adb shell "twrp restore stock-data"
 Then `stock-recovery.img` to `recovery` last, if you want stock recovery back too.
 
 **No ADB in Android 11.** From TWRP: `adb shell "twrp mount /cache; touch /cache/phh-adb"`,
-then reboot (phh's fallback ADB can take several minutes, or a cable replug, to appear). The
-installer later switches to Android's own ADB daemon. Until it has (or if it reported a
+then reboot. The installer later switches to Android's own ADB daemon. Until it has (or if it reported a
 rollback), never run `adb root`: on phh's fallback it kills ADB until you reboot.
 
 **Screen mirrored or sideways after step 7.** `/vendor/lib/libhwcflip.so` is missing or

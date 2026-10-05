@@ -212,12 +212,20 @@ def wait_for(target, minutes, hint):
         if s == target: return
         if s == "unauthorized" and not told:
             info("the device asks to allow USB debugging: tick 'always allow' and tap Allow"); told = True
-        if time.time() - t0 > 90 and not told:
-            info(hint); told = True
+        if time.time() - t0 > 30 and not told:
+            info(hint)
+            if platform.system() == "Darwin":
+                info("macOS: if an 'Allow accessory to connect?' prompt is showing, click Allow.")
+            told = True
         time.sleep(3)
     die(f"the device did not appear as '{target}' within {minutes} minutes. " + usb_help())
 
 def usb_help():
+    if platform.system() == "Darwin":
+        return ("On macOS, check for an 'Allow accessory to connect?' prompt: it appears each time "
+                "the device shows up with a new USB identity (TWRP, a reboot into Android, the ADB "
+                "switch) and adb cannot see the device until you click Allow. Otherwise try another "
+                "cable or USB port, directly (no hub), then run again.")
     if WIN:
         return ("On Windows, adb needs a USB driver for each mode of this device. Install the "
                 "WinUSB driver for it with Zadig (https://zadig.akeo.ie, Options > List All "
