@@ -31,5 +31,10 @@ started once with the patched library, the boot script reported "already in serv
 | "GPU missed frames" | 0 over 60 s idle and over 12 keystrokes | closed |
 | Deep doze | never entered naturally even in 10 h untouched (light idle 99 %); manual stepping reaches IDLE | open, low value (CPU already asleep >99 %) |
 
+| App profiles -> Kindle cold start (caches dropped, 3 runs each) | `verify` (no profile, as before the fix): 16.4 / 14.5 / 14.7 s; `speed-profile` from its recorded profile: 11.9 / 9.5 / 5.0 s | **Yes** (the profile fix; bg-dexopt compiles while charging) |
+| Kindle ANR 2026-10-04 01:25 (book open) | Kindle 243 % CPU in its own Compose layout, kswapd 29 %, SurfaceFlinger 2.7 %: app work under memory pressure, not the display path | mitigated by the compiled Kindle |
+| Memory with Kindle open | MemAvailable 272 MB, swap 162 MB used; zram already lz4 at 3.3:1 | -- |
+| Unused-hardware services | `com.android.smspush` disabled (4 MB, no SMS). RCS (`com.android.service.ims`) and Secure Element (`com.android.se`) are persistent and restart at once -- left alone | smspush **yes** |
+
 Screen on, idle, front light on: ~150 mA -- the front light and panel dominate; nothing in software
 moved it measurably.

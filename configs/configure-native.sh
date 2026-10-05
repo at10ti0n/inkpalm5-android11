@@ -40,7 +40,7 @@ for p in com.android.messaging com.android.dialer com.android.contacts com.andro
          com.android.providers.calendar com.android.gallery3d com.android.quicksearchbox \
          org.chromium.webview_shell com.android.cellbroadcastreceiver com.android.stk \
          com.android.traceur com.android.printspooler com.android.bips com.android.egg \
-         com.android.dreams.basic; do
+         com.android.dreams.basic com.android.smspush; do
   pm disable-user --user 0 $p >/dev/null 2>&1 || true
 done
 # SystemUI runs from /system but is compiled into /data; after it is replaced (systemui/) it
