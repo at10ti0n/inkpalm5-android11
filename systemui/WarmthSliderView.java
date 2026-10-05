@@ -3,6 +3,7 @@ package com.android.systemui.inkpalm;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.AttributeSet;
 import android.widget.SeekBar;
@@ -29,11 +30,19 @@ public class WarmthSliderView extends SeekBar implements SeekBar.OnSeekBarChange
     private static final String ACTIVATED = "night_display_activated";
     private static final String TEMP = "night_display_color_temperature";
     private static final int MAX_LEVEL = 24;
-    private static final long THROTTLE_MS = 300L;
+    /* Live updates while dragging, at most one per THROTTLE_MS. A Night Light change costs no
+     * panel update (MEASURED 2026-10-05: 0 panel updates per change -- the colour transform is
+     * identity), only two settings writes and ScreenTempService's brightness nudge, so the window
+     * went from 300 to 120 ms: the warm LEDs follow the finger ~2.5x more often. */
+    private static final long THROTTLE_MS = 120L;
 
     private final Handler mHandler = new Handler();
-    private long mLastApply;
+    private long mLastApply = -THROTTLE_MS;
+    private int mLastLevel = -1;
     private boolean mPendingApply;
+    private final Runnable mApplyPending = new Runnable() {
+        public void run() { if (mPendingApply) apply(clamp(getProgress())); }
+    };
 
     public WarmthSliderView(Context context) { this(context, null); }
 
@@ -47,7 +56,9 @@ public class WarmthSliderView extends SeekBar implements SeekBar.OnSeekBarChange
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        // The panel is re-shown rather than re-created, so re-read on every open.
+        // The panel is re-shown rather than re-created, so re-read on every open. The tile,
+        // Settings or the schedule may have changed Night Light meanwhile: forget the last level.
+        mLastLevel = -1;
         setProgress(readLevel());
     }
 
@@ -73,6 +84,8 @@ public class WarmthSliderView extends SeekBar implements SeekBar.OnSeekBarChange
 
     /** Level 0 turns Night Light off; 1..24 sets its temperature and turns it on. */
     private void apply(int level) {
+        mPendingApply = false;
+        if (level == mLastLevel) return;            // nothing changed: no writes, no nudge
         ContentResolver cr = getContext().getContentResolver();
         try {
             if (level <= 0) {
@@ -84,20 +97,19 @@ public class WarmthSliderView extends SeekBar implements SeekBar.OnSeekBarChange
                 if (Settings.Secure.getInt(cr, ACTIVATED, 0) != 1) Settings.Secure.putInt(cr, ACTIVATED, 1);
             }
         } catch (Exception e) { /* nothing else to do */ }
-        mLastApply = System.currentTimeMillis();
-        mPendingApply = false;
+        mLastLevel = level;
+        mLastApply = SystemClock.uptimeMillis();
     }
 
-    /** Live while dragging, but not on every pixel -- each apply costs a panel refresh. */
+    /** Live while dragging, at most one apply per THROTTLE_MS; the latest position wins. */
     private void applyThrottled(final int level) {
-        long now = System.currentTimeMillis();
+        long now = SystemClock.uptimeMillis();
         if (now - mLastApply >= THROTTLE_MS) {
+            mHandler.removeCallbacks(mApplyPending);
             apply(level);
         } else if (!mPendingApply) {
             mPendingApply = true;
-            mHandler.postDelayed(new Runnable() {
-                public void run() { if (mPendingApply) apply(getProgress()); }
-            }, THROTTLE_MS - (now - mLastApply));
+            mHandler.postDelayed(mApplyPending, THROTTLE_MS - (now - mLastApply));
         }
     }
 
@@ -107,5 +119,8 @@ public class WarmthSliderView extends SeekBar implements SeekBar.OnSeekBarChange
 
     public void onStartTrackingTouch(SeekBar bar) { }
 
-    public void onStopTrackingTouch(SeekBar bar) { apply(clamp(bar.getProgress())); }
+    public void onStopTrackingTouch(SeekBar bar) {
+        mHandler.removeCallbacks(mApplyPending);
+        apply(clamp(bar.getProgress()));            // the release position always lands
+    }
 }

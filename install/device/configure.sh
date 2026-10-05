@@ -182,13 +182,14 @@ if [ -d "$(dirname $P)" ]; then
 fi
 
 if [ -f SystemUI-warmth.apk ]; then
-  # A patched SystemUI only matches the GSI build it was made from: stock v313, or v2.3's.
+  # A patched SystemUI only matches the GSI build it was made from: stock v313, or an earlier
+  # release's patched build (v2.3: ff609d49; v2.4-v2.6.2: 988e22b7).
   say "Screen Temperature slider (patched SystemUI)"
   SUI=/system/system_ext/priv-app/SystemUI
   CUR=$(sha $SUI/SystemUI.apk); OURS=$(sha SystemUI-warmth.apk)
   case "$CUR" in
     "$OURS") echo "  already installed" ;;
-    6fb1830ec147e77699393d95de92d04ef99deac02e32e19576f19e93a1389d16|ff609d49f517f2a546990e0f29da71c1fb3088b729eabf86489103bf6056d587)
+    6fb1830ec147e77699393d95de92d04ef99deac02e32e19576f19e93a1389d16|ff609d49f517f2a546990e0f29da71c1fb3088b729eabf86489103bf6056d587|988e22b7d5686e0100196fab30d181f4190fde49d889b0e950ba9a33c9786a95)
       rw /system
       [ -f /data/local/SystemUI.apk.stock ] || cp -p $SUI/SystemUI.apk /data/local/SystemUI.apk.stock
       [ -d /data/local/SystemUI-oat.stock ] || cp -a $SUI/oat /data/local/SystemUI-oat.stock
