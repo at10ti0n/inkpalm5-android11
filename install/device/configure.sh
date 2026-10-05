@@ -145,6 +145,10 @@ else
   say "one-time defaults: skipped (an update keeps your settings)"
 fi
 sh /data/local/a11-boot-fixups.sh; echo "  startup settings applied"
+# The vendor composer logs ~10 verbose lines per frame; logd spent ~19 ms CPU per panel update on
+# them (MEASURED 2026-10-05: 4.4 ms with this tag at Info). Debugging the display path:
+#   setprop persist.log.tag.sunxihwc_eink ""   (verbose again; it is what showed the 3 s wait)
+setprop persist.log.tag.sunxihwc_eink I
 
 say "standby image (lock-screen wallpaper)"
 if [ "${FIRST_TIME:-0}" != 1 ] && grep -q "<kwp" /data/system/users/0/wallpaper_info.xml 2>/dev/null; then
