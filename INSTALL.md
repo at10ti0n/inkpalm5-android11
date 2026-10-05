@@ -67,8 +67,8 @@ device is and continues. Your backup is in `inkpalm-work/backup-<serial>-<date>/
 README on how to restore it.
 
 Options (add after `inkpalm.py`, or after the launcher in a terminal):
-`--sf-patch` (SurfaceFlinger freeze workaround) and `--orient-patch` (full-screen KOReader),
-see *Known issues*.
+`--sf-patch` (SurfaceFlinger freeze workaround) and `--no-orient-patch` (skip the full-screen
+KOReader fix, which is on by default), see *Known issues*.
 
 **Updating later:** run it again on Android 11. It installs the new release's files and keeps
 your settings and lock-screen image (`--first-time` re-applies the defaults).
@@ -182,7 +182,8 @@ Installs the key layouts and touch config, the E-Ink tiles app, the Screen Tempe
 overlays and SystemUI slider, sets the Quick Settings panel, applies the native configuration
 (locked portrait, lock-screen image, 2-minute timeout, Bluetooth and scanning off), sets up
 kernel suspend, and reboots. Optional extras are switched on by
-prefixing the command: `SF_PATCH=1` and `ORIENT_PATCH=1` (see Known issues). `UPDATE=1`
+prefixing the command: `SF_PATCH=1`; `ORIENT_PATCH=0` skips the full-screen KOReader fix
+(on by default, see Known issues). `UPDATE=1`
 keeps your settings when re-running it later.
 
 **When it comes back you are done.** Portrait, touch aligned, brightness slider working.
@@ -198,7 +199,7 @@ Nothing here is required, it is just what makes it a good reader:
 * **[EinkBro](https://github.com/plateaukao/einkbro)** — a browser built for E Ink.
 * **Kindle** — turn on "Turn pages with volume controls" in its settings to page with the side buttons.
 * **[KOReader](https://github.com/koreader/koreader/releases)** — the `arm` APK. It opens in a
-  small box unless you use `ORIENT_PATCH=1` (Known issues).
+  full screen; the installer applies the fix for this by default (Known issues).
 
 ---
 
@@ -323,14 +324,14 @@ is still caught.
   proof; the root cause is not confirmed.
   See [docs/INCIDENT-SF-LIVELOCK.md](docs/INCIDENT-SF-LIVELOCK.md). If a freeze happens to you,
   send the contents of `/data/local/sf-hang/`.
-* **KOReader and the stock launcher (Launcher3) open letterboxed** in a small landscape box in
-  the middle of the screen. They ask Android for the display's *natural* orientation, and this
-  panel is natively landscape (Android rotates it to portrait). **Opt in to the fix with
-  `ORIENT_PATCH=1 bash install/from-android.sh ...`**: it patches one method of your own
+* **KOReader and the stock launcher (Launcher3) would open letterboxed** in a small landscape box
+  in the middle of the screen. They ask Android for the display's *natural* orientation, and this
+  panel is natively landscape (Android rotates it to portrait). **The installer fixes this by
+  default** (since 2026-10-05; `--no-orient-patch` / `ORIENT_PATCH=0` skips it): it patches one method of your own
   `services.jar` on your computer (hash-checked both ways, byte-identical on every machine) so
   that request means "no preference", and the app fills the screen in whatever orientation the
   Orientation tile is set to. Tested on the author's device 2026-10-02, on the stock and the
-  standby-trial `services.jar`. If you rotate while KOReader is open it is boxed again until you
+  standby-trial `services.jar`, and in daily use since. If you rotate while KOReader is open it is boxed again until you
   restart it (it declares itself non-resizable). Undo: copy
   `/data/local/services.jar.pre-orient` back over `/system/framework/services.jar`, reboot.
   Without the patch, a list launcher such as Unlauncher avoids it on the home screen.

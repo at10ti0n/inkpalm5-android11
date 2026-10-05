@@ -17,7 +17,8 @@ installed, the latest release of this project and phhusson's GSI v313, each hash
 
 Options:
   --sf-patch        stage the SurfaceFlinger freeze workaround (patch-sf.py)
-  --orient-patch    full-screen KOReader / Launcher3 (patch-orientation.py)
+  --no-orient-patch skip the full-screen fix for KOReader / Launcher3 (patch-orientation.py;
+                    on by default since 2026-10-05)
   --assets DIR      use release files already downloaded (must include SHA256SUMS)
   --gsi FILE        use a GSI .img or .img.xz you already have
   --first-time      on Android 11: also re-apply the one-time defaults
@@ -414,7 +415,9 @@ def main():
     ap.add_argument("phase", nargs="?", default="auto",
                     choices=["auto", "check", "backup", "flash-twrp", "twrp-install", "configure"])
     ap.add_argument("--assets"); ap.add_argument("--gsi")
-    ap.add_argument("--sf-patch", action="store_true"); ap.add_argument("--orient-patch", action="store_true")
+    ap.add_argument("--sf-patch", action="store_true")
+    ap.add_argument("--orient-patch", dest="orient_patch", action="store_true", default=True, help=argparse.SUPPRESS)
+    ap.add_argument("--no-orient-patch", dest="orient_patch", action="store_false")
     ap.add_argument("--first-time", action="store_true"); ap.add_argument("--yes", action="store_true")
     ARGS = ap.parse_args()
     print("InkPalm 5 Pro Mini -- Android 11 installer. Read INSTALL.md first; this rewrites your device.")
