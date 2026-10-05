@@ -70,6 +70,16 @@ if [ -f libwpaexit.so ]; then
   grep -q libwpaexit $R && echo "  installed" || echo "  NOT installed (rc layout differs)"
 fi
 
+if [ -f libhwcflip.so ]; then
+  # The display shim (frame mirror + software vsync) is loaded by the running composer: put()
+  # installs a changed copy by rename, active after the reboot. Identical copies are skipped.
+  say "display shim (/vendor/lib/libhwcflip.so)"
+  rw /vendor
+  if [ "$(sha libhwcflip.so)" = "$(sha /vendor/lib/libhwcflip.so)" ]; then echo "  already installed"
+  else put libhwcflip.so /vendor/lib/libhwcflip.so vendor_file && echo "  updated (active after the reboot)"; fi
+  ro /vendor
+fi
+
 say "framework overlays in /vendor/overlay (no modem, Screen Temperature tint, suspend policy)"
 # Static overlays: system_server only reads its own resources from preinstalled overlays.
 rw /vendor
