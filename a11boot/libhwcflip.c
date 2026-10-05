@@ -48,6 +48,9 @@
 #include <stdlib.h>
 #include <hardware/hardware.h>
 #include <hardware/hwcomposer2.h>
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#include <arm_neon.h>
+#endif
 
 typedef int (*ioctl_fn)(int,int,...);
 static ioctl_fn real_ioctl;
@@ -81,8 +84,29 @@ static int shadow_init(size_t len){
         void *m=mmap(0,len,PROT_READ|PROT_WRITE,MAP_SHARED,dfd,0); if(m==MAP_FAILED){ g_shinit=-1; return 0; } g_sh[i].fd=dfd; g_sh[i].map=m; g_sh[i].len=len; }
     g_shinit=1; return 1;
 }
-static void flip_rows_copy(const uint8_t *src, uint8_t *dst, unsigned w, unsigned h, unsigned bpp, size_t stride){
+static void flip_rows_copy_bytes(const uint8_t *src, uint8_t *dst, unsigned w, unsigned h, unsigned bpp, size_t stride){
     for(unsigned y=0;y<h;y++){ const uint8_t *r=src+y*stride; uint8_t *d=dst+y*stride; for(unsigned x=0;x<w;x++) memcpy(d+(size_t)x*bpp, r+(size_t)(w-1-x)*bpp, bpp); }
+}
+/* Row reversal. 4-byte pixels (format 0x1, the only one seen in practice) go four at a time
+ * through NEON: load 16 bytes from the row's end, reverse the four lanes, store forward. The
+ * per-pixel memcpy version (kept for other formats) took 27-60 ms per 1280x720 update in the
+ * composer's frame path (vendor.hwcflip.trace). Byte-identical output: verified against it for
+ * widths 1..1281 and 1-4 bytes per pixel. */
+static void flip_rows_copy(const uint8_t *src, uint8_t *dst, unsigned w, unsigned h, unsigned bpp, size_t stride){
+    if(bpp!=4 || (((uintptr_t)src|(uintptr_t)dst|stride)&3)){ flip_rows_copy_bytes(src,dst,w,h,bpp,stride); return; }
+    for(unsigned y=0;y<h;y++){
+        const uint32_t *r=(const uint32_t*)(src+y*stride); uint32_t *d=(uint32_t*)(dst+y*stride);
+        unsigned x=0;
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+        for(; x+4<=w; x+=4){
+            uint32x4_t v=vld1q_u32(r+(w-4-x));
+            v=vrev64q_u32(v);
+            v=vcombine_u32(vget_high_u32(v),vget_low_u32(v));
+            vst1q_u32(d+x,v);
+        }
+#endif
+        for(; x<w; x++) d[x]=r[w-1-x];
+    }
 }
 #define CMD_UPDATE2 0x406
 #define CFG_LEN 200

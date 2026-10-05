@@ -5,6 +5,6 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 NDK=${NDK:?set NDK to the toolchains/llvm/prebuilt/HOST/bin directory of an Android NDK}
 OUT=${1:-$HERE/../build/libhwcflip.so}; mkdir -p "$(dirname "$OUT")"
-"$NDK/armv7a-linux-androideabi28-clang" -shared -fPIC -O2 -Wall -Wformat -Wl,-z,now \
+"$NDK/armv7a-linux-androideabi28-clang" -shared -fPIC -O2 -mfpu=neon -Wall -Wformat -Wl,-z,now \
     -I"$HERE/include" -o "$OUT" "$HERE/libhwcflip.c" -ldl
 echo "built $OUT sha256 $(shasum -a256 "$OUT" | cut -c1-16)"
