@@ -1,7 +1,7 @@
 # Missing ARM VFP hotplug fix in the EPD105 kernel
 
 Status 2026-10-28: the defect is confirmed in the running kernel, an exact backport
-is installed on the author's device, and initial checks pass. Longer suspend and
+is installed on the author's device, and 23 real suspend cycles pass. Overnight
 sunrise validation is pending. This is separate from the bounded framework
 [recovery guard](FRAMEWORK-RECOVERY.md), which shortens recovery after a crash.
 
@@ -114,8 +114,16 @@ recovery guard does not undo this kernel change.
 - 300 fresh toybox/libcrypto startups passed with empty stderr, alongside 20
   dark/light theme changes. system_server kept the same PID; automatic night mode
   was restored and no new tombstones appeared.
-- Real suspend tests and the next natural sunrise transition are still pending.
-  USB prevents suspend on this device, so USB-only results cannot establish this.
+- The ten-minute unplugged alarm trial completed **23 successful kernel suspends**,
+  with one aborted attempt (`EBUSY`) and no resume failures. All four raw-syscall
+  workers reported zero register mismatches. Nineteen fresh crypto startups after
+  observed resumes passed; the final totals were zero register, crypto and alarm
+  errors. system_server retained its PID and no new tombstones appeared. Physical
+  sleep and wake were independently confirmed by the operator.
+- The alarm FD was closed after that trial. A separate 12-hour passive monitor
+  was verified running, with only stdin/stdout/stderr FDs and no held kernel wake
+  lock. The next natural sunrise transition remains to be checked. USB prevents
+  suspend on this device, so the overnight check should run unplugged.
 
 The native diagnostic source is in `tools/src/vfp-state-canary.c` and `.S`. The C
 must be compiled without VFP/vector instructions; compile the explicit assembly
@@ -136,7 +144,9 @@ bash tools/build-vfp-canary.sh "$ANDROID_NDK_HOME" vfp-state-canary
 Use a detached recorder to retain stdout/stderr through USB disconnection, and
 inspect kernel suspend counters to prove the device actually suspended. The
 program reports successful comparison of register snapshots separately from
-actual suspend intervals. Optional alarm wakes stop at the absolute test deadline;
+inferred suspend intervals: preemption between clock reads can also inflate the
+clock delta, so kernel counters are the corroborating source. Optional alarm wakes
+stop at the absolute test deadline;
 they are one-shot and rearmed in userspace, so a stopped program cannot leave an
 ongoing periodic wakeup behind.
 

@@ -349,8 +349,9 @@ is still caught.
   automatically; the original crash cause remains under investigation.
   See [docs/FRAMEWORK-RECOVERY.md](docs/FRAMEWORK-RECOVERY.md).
   A separate [exact-kernel VFP hotplug backport](docs/INCIDENT-VFP-HOTPLUG.md)
-  repairs a confirmed kernel defect and is in device testing; its longer suspend
-  and sunrise checks remain pending. It is an opt-in kernel trial.
+  repairs a confirmed kernel defect and is in device testing; 23 real suspend
+  cycles pass and the overnight sunrise check remains pending. It is an opt-in
+  kernel trial.
 * **Battery life is not characterised yet.** Kernel suspend works (the installer sets it up
   since v2.5; before that it had to be done by hand). One tester reports about 1% in 12 hours
   asleep; the author's own long-term measurement is pending.

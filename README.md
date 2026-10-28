@@ -52,7 +52,7 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
 * **ARM VFP hotplug backport (kernel trial):** the vendor kernel contains a known
   upstream-fixed register-state defect. A hash-guarded builder and native canary
   are available for testing the exact backport. It is installed on the author's
-  device; longer suspend/sunrise validation is pending.
+  device; 23 real suspend cycles pass and overnight sunrise validation is pending.
   [Evidence, builder and limits](docs/INCIDENT-VFP-HOTPLUG.md).
 * **TWRP was blank on this device** because TWRP's Android-9 `init` only creates
   `/dev/block/by-name/*` when the bootloader passes `androidboot.boot_devices` — Moaan's

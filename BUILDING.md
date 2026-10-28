@@ -116,8 +116,9 @@ paths on that backup; the optional `test-vfp-emulation.py` executes the actual
 old/new callbacks with Unicorn. The native register probe builds with
 `bash tools/build-vfp-canary.sh "$ANDROID_NDK_HOME"`.
 See [INCIDENT-VFP-HOTPLUG.md](docs/INCIDENT-VFP-HOTPLUG.md) for hashes, device
-results and trial/rollback requirements. Longer suspend/sunrise validation is
-pending; this builder is separate from the standard release boot image build.
+results and trial/rollback requirements. Twenty-three real suspend cycles pass;
+overnight sunrise validation is pending. This builder is separate from the
+standard release boot image build.
 
 ## Releasing
 
