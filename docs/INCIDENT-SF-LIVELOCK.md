@@ -629,7 +629,15 @@ byte is nonzero while the queue is empty" and "this reading is wrong".
 `vldmia`/`vstmia`) saw zero corruptions. Both ran on the USB cable, and on the cable this device
 **never suspends** (`chgusb_det` and `usb_connecting` wakeup sources stay active; suspend_stats did
 not move), so they exercised cpuidle (`cpu-sleep-0`, `cluster-sleep-0`, millions of entries) but not
-suspend/resume. An 8-hour canary is running; it tests suspend only if the device is unplugged.
+suspend/resume. An 8-hour canary was then started to exercise unplugged suspend.
+
+**Follow-up 2026-10-28:** the retained eight-hour log contains one positive in its
+CPU3-labelled worker: all d8-d15 changed after a 403-second gap. It was overlooked
+in the earlier account. That canary called libc between loading and checking its
+registers; a new raw-syscall probe removes that ambiguity. The running vendor kernel
+also contains an upstream-fixed ARM VFP hotplug defect. An exact backport is now in
+device testing. See [INCIDENT-VFP-HOTPLUG.md](INCIDENT-VFP-HOTPLUG.md) for measured
+evidence, the patch, and the remaining uncertainty about the original crashes.
 
 ## The patch: `a11boot/patch-sf.py` (staged when written; in service since 2026-09-22)
 

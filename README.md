@@ -49,6 +49,11 @@ Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/fi
   `python3 install/inkpalm.py framework-recovery` and reboot.
   [Evidence and rollback](docs/FRAMEWORK-RECOVERY.md). The original crash cause is
   still being investigated.
+* **ARM VFP hotplug backport (kernel trial):** the vendor kernel contains a known
+  upstream-fixed register-state defect. A hash-guarded builder and native canary
+  are available for testing the exact backport. It is installed on the author's
+  device; longer suspend/sunrise validation is pending.
+  [Evidence, builder and limits](docs/INCIDENT-VFP-HOTPLUG.md).
 * **TWRP was blank on this device** because TWRP's Android-9 `init` only creates
   `/dev/block/by-name/*` when the bootloader passes `androidboot.boot_devices` — Moaan's
   8.1 vendor init makes those links itself.  Fifteen `symlink` lines in the recovery rc fix

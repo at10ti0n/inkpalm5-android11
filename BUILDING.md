@@ -107,6 +107,18 @@ why each piece is needed.
 Design notes for all of these are in `docs/`; start with
 [REFRESH-CONTROL.md](docs/REFRESH-CONTROL.md) and [FRONTLIGHT.md](docs/FRONTLIGHT.md).
 
+## Exact-kernel VFP backport (device trial)
+
+`python3 a11boot/patch-vfp.py current-boot-backup.img boot-vfp-fixed.img` applies
+the upstream ARM hotplug fix to the reviewed EPD105 kernel while preserving the
+supplied image's ramdisk. `a11boot/test-vfp.py` checks preservation and refusal
+paths on that backup; the optional `test-vfp-emulation.py` executes the actual
+old/new callbacks with Unicorn. The native register probe builds with
+`bash tools/build-vfp-canary.sh "$ANDROID_NDK_HOME"`.
+See [INCIDENT-VFP-HOTPLUG.md](docs/INCIDENT-VFP-HOTPLUG.md) for hashes, device
+results and trial/rollback requirements. Longer suspend/sunrise validation is
+pending; this builder is separate from the standard release boot image build.
+
 ## Releasing
 
 The release is published from a staging directory, so **every file in it ships** and
