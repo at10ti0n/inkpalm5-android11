@@ -23,6 +23,11 @@ rw() { mount -o rw,remount "$1"; }
 ro() { sync; mount -o ro,remount "$1" 2>/dev/null; }
 sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 
+say "bounded framework restart recovery"
+# One verified vendor init rule, activated by the configuration phase's normal reboot.
+# Run before other configuration changes so a mismatched init is caught immediately.
+sh ./framework-recovery.sh install ./framework-recovery.rc || exit 1
+
 say "input configs and startup scripts"
 mkdir -p /data/system/devices/keylayout /data/system/devices/idc
 cp sunxi-gpadc0.kl sunxi-keyboard.kl pmu1736-powerkey.kl Vendor_dead_Product_beef.kl /data/system/devices/keylayout/

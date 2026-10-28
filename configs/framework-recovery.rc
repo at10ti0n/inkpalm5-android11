@@ -1,0 +1,27 @@
+# EPD105 / PHH v313: let a restarting framework finish before autosuspend.
+# Loaded by stock Android 8.1 init from /vendor/etc/init. No background service.
+# phase tracks the recovery EPISODE, not whether its timed lock is still active.
+# Leave the episode armed after timeout: repeated crashes must not renew the cap.
+on post-fs-data
+    setprop sys.inkpalm.fwguard idle
+
+# Observed on this port: bootanim starts before zygote reaches "restarting".
+# Protect that early interval too; whichever trigger runs first owns the episode.
+on property:init.svc.bootanim=running && property:sys.inkpalm.fwguard=idle
+    write /sys/power/wake_lock "inkpalm_framework_recovery 900000000000"
+    setprop sys.inkpalm.fwguard animating
+    write /dev/kmsg "inkpalm-fwguard: animation started; kernel timeout 900s"
+
+on property:init.svc.zygote=restarting && property:sys.inkpalm.fwguard=idle
+    write /sys/power/wake_lock "inkpalm_framework_recovery 900000000000"
+    setprop sys.inkpalm.fwguard waiting-animation
+    write /dev/kmsg "inkpalm-fwguard: recovery started; kernel timeout 900s"
+
+# An old boot_completed=1 or bootanim=stopped is not fresh readiness.
+on property:init.svc.bootanim=running && property:sys.inkpalm.fwguard=waiting-animation
+    setprop sys.inkpalm.fwguard animating
+
+on property:init.svc.bootanim=stopped && property:init.svc.zygote=running && property:sys.inkpalm.fwguard=animating
+    write /sys/power/wake_unlock inkpalm_framework_recovery
+    setprop sys.inkpalm.fwguard idle
+    write /dev/kmsg "inkpalm-fwguard: fresh boot animation finished; recovery lock released"

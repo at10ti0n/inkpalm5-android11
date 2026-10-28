@@ -41,6 +41,14 @@ calibration (`/private`, never touch it), not the GSI (download it from phhusson
 Panel photos: `docs/images/android11-portrait.jpg` (working) and `docs/images/first-boot-mirrored.jpg` (first boot, before the composer fix).
 
 ## How it works (the parts that took weeks to find)
+* **Bounded framework recovery:** an init rule holds a kernel wake lock during
+  framework restart so autosuspend cannot stretch startup into hours. It releases
+  after the new boot animation finishes, with a nonrenewing 15-minute cap per
+  recovery episode. Tested unplugged: 34-second recovery, then automatic suspend.
+  Included in configuration; existing installs can run
+  `python3 install/inkpalm.py framework-recovery` and reboot.
+  [Evidence and rollback](docs/FRAMEWORK-RECOVERY.md). The original crash cause is
+  still being investigated.
 * **TWRP was blank on this device** because TWRP's Android-9 `init` only creates
   `/dev/block/by-name/*` when the bootloader passes `androidboot.boot_devices` — Moaan's
   8.1 vendor init makes those links itself.  Fifteen `symlink` lines in the recovery rc fix

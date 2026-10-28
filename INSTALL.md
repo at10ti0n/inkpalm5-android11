@@ -73,6 +73,13 @@ KOReader fix, which is on by default), see *Known issues*.
 **Updating later:** run it again on Android 11. It installs the new release's files and keeps
 your settings and lock-screen image (`--first-time` re-applies the defaults).
 
+**Install only the framework recovery guard:** with the current repo checkout and
+Android 11 connected, run `python3 install/inkpalm.py framework-recovery`, then
+`adb reboot`. This downloads no release assets and updates no apps. It prevents
+autosuspend from stretching a framework restart into hours, with a 15-minute
+kernel timeout per recovery episode. The normal configuration phase also installs
+it by default. [Results, limits and rollback](docs/FRAMEWORK-RECOVERY.md).
+
 **Windows:** adb needs a USB driver for each mode of the device (Android, and TWRP which shows up
 as USB ID `1f3a:1001`). If the installer waits for the device forever, install the *WinUSB*
 driver for it with [Zadig](https://zadig.akeo.ie) (Options → List All Devices). Reports from
@@ -336,6 +343,11 @@ is still caught.
   `/data/local/services.jar.pre-orient` back over `/system/framework/services.jar`, reboot.
   Without the patch, a list launcher such as Unlauncher avoids it on the home screen.
 * **Landscape for a moment at every boot**, before the rotation lock applies.
+* **Framework crashes could leave the boot animation running for hours** because
+  autosuspend interrupts startup. The current installer includes a bounded recovery
+  wake lock. An unplugged controlled restart completed in 34 seconds, then slept
+  automatically; the original crash cause remains under investigation.
+  See [docs/FRAMEWORK-RECOVERY.md](docs/FRAMEWORK-RECOVERY.md).
 * **Battery life is not characterised yet.** Kernel suspend works (the installer sets it up
   since v2.5; before that it had to be done by hand). One tester reports about 1% in 12 hours
   asleep; the author's own long-term measurement is pending.

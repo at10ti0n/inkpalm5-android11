@@ -23,7 +23,8 @@ Options:
   --gsi FILE        use a GSI .img or .img.xz you already have
   --first-time      on Android 11: also re-apply the one-time defaults
   --yes             do not ask before each phase
-Single phases (normally chosen automatically): check, backup, flash-twrp, twrp-install, configure.
+Single phases: check, backup, flash-twrp, twrp-install, configure, native-adb,
+framework-recovery (installs only the bounded restart guard; reboot separately).
 
 Nothing ever writes the `private` partition (your panel's calibration) and it is not read.
 """
@@ -48,6 +49,7 @@ CONFIG_FILES = ["configs/sunxi-gpadc0.kl", "configs/sunxi-keyboard.kl", "configs
                 "configs/Vendor_dead_Product_beef.kl", "configs/Vendor_dead_Product_beef.idc",
                 "configs/a11-boot-fixups.sh", "configs/configure-native.sh",
                 "configs/android.system.suspend@1.0-service.rc", "configs/zz-inkpalm-profiles.rc",
+                "configs/framework-recovery.rc", "install/device/framework-recovery.sh",
                 "tools/sf-watch.sh",
                 "tools/sf-capture.sh", "docs/images/standby.png", "install/device/configure.sh"]
 OPTIONAL_ASSETS = ["libwpaexit.so", "inkpalm-nomodem.apk", "inkpalm-screentemp-fw.apk",
@@ -416,6 +418,18 @@ def configure(first_time):
     rot = shell("settings get system user_rotation", check=False)
     info("portrait: " + ("yes" if rot == "1" else f"user_rotation={rot}"))
 
+def framework_recovery():
+    """Install only the tested restart guard, without release assets or app updates."""
+    say("bounded framework recovery wake lock")
+    st = "/data/local/tmp/inkpalm-fwguard-install"
+    shell(f"mkdir -p {st}")
+    for f in ("configs/framework-recovery.rc", "install/device/framework-recovery.sh"):
+        adb("push", os.path.join(REPO, f), f"{st}/")
+    if not run_device(f"su -c 'sh {st}/framework-recovery.sh install {st}/framework-recovery.rc'",
+                      "== framework recovery installed"):
+        die("recovery guard installation refused or failed (see above)")
+    info("Installed. Reboot to load the init rule; see docs/FRAMEWORK-RECOVERY.md for rollback.")
+
 APEX_RC = "/system/etc/init/apex-setup.rc"
 APEX_ORIG = "edb1f2cfb75da475f0018201fed77b87cbf1020d7d525aa69a36eceb6dd95af6"   # phh v313
 APEX_PATCHED = "bb4e0ac6bc2e8c0ec9b18e7faa885bef025f8d49b4bd6ce9c60cdb25ffa5808f"  # tested result
@@ -477,7 +491,7 @@ def main():
     global ARGS
     ap = argparse.ArgumentParser(description="InkPalm 5 Pro Mini: Android 11 installer")
     ap.add_argument("phase", nargs="?", default="auto",
-                    choices=["auto", "check", "backup", "flash-twrp", "twrp-install", "configure", "native-adb"])
+                    choices=["auto", "check", "backup", "flash-twrp", "twrp-install", "configure", "native-adb", "framework-recovery"])
     ap.add_argument("--assets"); ap.add_argument("--gsi")
     ap.add_argument("--sf-patch", action="store_true")
     ap.add_argument("--orient-patch", dest="orient_patch", action="store_true", default=True, help=argparse.SUPPRESS)
@@ -487,6 +501,9 @@ def main():
     print("InkPalm 5 Pro Mini -- Android 11 installer. Read INSTALL.md first; this rewrites your device.")
     ensure_adb()
     adb("start-server", check=False)
+    if ARGS.phase == "framework-recovery":
+        framework_recovery()
+        return
     ARGS.assets_dir = ensure_assets()
     s = load_state()
 
