@@ -1,8 +1,9 @@
 # Missing ARM VFP hotplug fix in the EPD105 kernel
 
-Status 2026-10-28: the defect is confirmed in the running kernel, an exact backport
-is installed on the author's device, and 23 real suspend cycles pass. Overnight
-sunrise validation is pending. This is separate from the bounded framework
+Status 2026-10-29: the defect is confirmed in the vendor kernel and an exact
+backport is installed on the author's device. The first unplugged night and its
+automatic morning theme transition passed, following 23 controlled real suspend
+cycles. This is separate from the bounded framework
 [recovery guard](FRAMEWORK-RECOVERY.md), which shortens recovery after a crash.
 
 ## What is established
@@ -120,10 +121,34 @@ recovery guard does not undo this kernel change.
   observed resumes passed; the final totals were zero register, crypto and alarm
   errors. system_server retained its PID and no new tombstones appeared. Physical
   sleep and wake were independently confirmed by the operator.
-- The alarm FD was closed after that trial. A separate 12-hour passive monitor
-  was verified running, with only stdin/stdout/stderr FDs and no held kernel wake
-  lock. The next natural sunrise transition remains to be checked. USB prevents
-  suspend on this device, so the overnight check should run unplugged.
+- The alarm FD was closed after that trial. A separate passive monitor ran
+  unplugged overnight with no alarm FD or held kernel wake lock. At the first
+  reconnect, the kernel had completed **138 additional successful suspends**
+  (23 to 161 cumulative). All four raw-register workers remained clean and all
+  **127 fresh crypto startups** after observed resumes passed. There were also
+  32 aborted suspend attempts, with no kernel resume failures; these are not
+  successful suspends and are not counted as such.
+- The natural morning trigger was actually exercised: `TwilightService.onAlarm`
+  ran at 07:10:36 local time on October 29, followed by the day-theme
+  configuration at 07:15:44 and the display override at 07:15:45. Automatic night
+  mode remained enabled. The boot ID, system_server PID **and process start time**
+  all matched the saved baseline, proving the same Android core survived the
+  night. No new tombstones or DropBox crash/restart records appeared. The operator
+  independently confirmed normal waking the next morning; they were not asked
+  to watch the display overnight.
+- The passive monitor completed its full **12-hour** interval at about 11:34
+  local time. All four workers reached `DONE` with zero mismatches; the final
+  result was `TOTAL corruptions=0 crypto_failures=0 alarm_failures=0`. Its launcher
+  recorded `complete`, both processes exited, and no test wake lock remained.
+  The morning reconnect preceded the deadline by about 12 minutes; suspend
+  counters stayed at 161 during that final USB-connected interval. USB prevents
+  suspend on this device, so the meaningful overnight suspend evidence was
+  gathered while unplugged.
+
+The overnight result validates the repaired kernel through one natural occurrence
+of the previous trigger. It does not turn the historical attribution into direct
+register evidence, or establish that every rare freeze on this build is solved.
+The backport remains an opt-in trial for the exact reviewed kernel.
 
 The native diagnostic source is in `tools/src/vfp-state-canary.c` and `.S`. The C
 must be compiled without VFP/vector instructions; compile the explicit assembly
