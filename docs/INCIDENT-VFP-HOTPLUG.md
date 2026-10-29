@@ -3,7 +3,8 @@
 Status 2026-10-29: the defect is confirmed in the vendor kernel and an exact
 backport is installed on the author's device. The first unplugged night and its
 automatic morning theme transition passed, following 23 controlled real suspend
-cycles. This is separate from the bounded framework
+cycles. The usual 3–4-day uptime failure window has not yet been covered. This is
+separate from the bounded framework
 [recovery guard](FRAMEWORK-RECOVERY.md), which shortens recovery after a crash.
 
 ## What is established
@@ -149,6 +150,24 @@ The overnight result validates the repaired kernel through one natural occurrenc
 of the previous trigger. It does not turn the historical attribution into direct
 register evidence, or establish that every rare freeze on this build is solved.
 The backport remains an opt-in trial for the exact reviewed kernel.
+
+The operator clarified after the overnight run that failures usually appeared
+after **3–4 days without rebooting**, with unplugging also involved. The tested
+boot was only about 13 hours old at the morning collection. That result therefore
+does not cover the reported long-uptime condition, and charge level has not been
+established as its cause. The next observation is normal use through at least
+four days of the same boot, preferably a week, including normal charging and
+unplugging. The four-day threshold is November 1 evening and one week is November
+4 evening, measured from the October 28 patched boot.
+
+The intensive register probe has exited. For this longer observation the device
+keeps its pre-existing battery/kernel logger and SurfaceFlinger watcher; no new
+register-polling service was added. During normal monitoring these existing
+recorders hold no wake lock and schedule no wake alarms, but still perform work
+while the CPU is awake. Their battery overhead has not been measured. The kernel
+suspend counters, boot ID and system_server process start time will be checked
+again against the saved baseline. Do not infer a successful week merely from a recorder being
+configured or from the absence of a reported problem.
 
 The native diagnostic source is in `tools/src/vfp-state-canary.c` and `.S`. The C
 must be compiled without VFP/vector instructions; compile the explicit assembly
